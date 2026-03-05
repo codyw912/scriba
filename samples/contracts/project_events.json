@@ -1,0 +1,23 @@
+{
+  "required_endpoints": [
+    "GET /v1/projects",
+    "GET /v1/projects/{project_id}/events",
+    "GET /v1/audit/logs"
+  ],
+  "required_headings": [
+    "projects and events api",
+    "list projects",
+    "list project events",
+    "export audit log",
+    "pagination rules"
+  ],
+  "required_literals": [
+    "created_at desc",
+    "31 days per request",
+    "next_cursor",
+    "cursor tokens are opaque strings"
+  ],
+  "forbidden_literals": [
+    "POST /v1/projects/{project_id}/events"
+  ]
+}

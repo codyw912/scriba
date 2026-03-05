@@ -1,0 +1,23 @@
+[
+  {
+    "doc_type": "api",
+    "fixture_id": "mini_api",
+    "has_contract": true,
+    "size_bucket": "small",
+    "source_markdown": "gold_markdown/mini_api.md"
+  },
+  {
+    "doc_type": "api",
+    "fixture_id": "service_guide",
+    "has_contract": true,
+    "size_bucket": "small",
+    "source_markdown": "gold_markdown/service_guide.md"
+  },
+  {
+    "doc_type": "api",
+    "fixture_id": "webhooks",
+    "has_contract": true,
+    "size_bucket": "small",
+    "source_markdown": "gold_markdown/webhooks.md"
+  }
+]

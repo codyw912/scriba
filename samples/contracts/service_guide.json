@@ -1,0 +1,17 @@
+{
+  "required_endpoints": [
+    "GET /v1/health",
+    "POST /v1/sessions"
+  ],
+  "required_headings": [
+    "service guide",
+    "health check",
+    "create session",
+    "rate limits"
+  ],
+  "required_literals": [
+    "200",
+    "ttl_seconds=3600",
+    "120 requests per minute"
+  ]
+}

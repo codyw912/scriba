@@ -1,0 +1,45 @@
+version: 1
+
+artifacts:
+  root: ./artifacts
+  run_id: auto
+
+backends:
+  local_text:
+    adapter: openai_http
+    topology: local_spawned
+    provider: mlx_lm
+    model_origin: local_weights
+    base_url: http://127.0.0.1:8091
+    inference_path: /v1/chat/completions
+    health_path: /v1/models
+    startup_timeout_s: 180
+    command: mlx_lm.server --host 127.0.0.1 --port 8091 --model mlx-community/Qwen2.5-14B-Instruct-8bit
+    api_key: ""
+
+roles:
+  normalize_text:
+    backend: local_text
+    model: mlx-community/Qwen2.5-14B-Instruct-8bit
+
+stages:
+  extract:
+    enabled: true
+  clean:
+    enabled: true
+  sectionize:
+    enabled: true
+    target_tokens: 3500
+    overlap_tokens: 300
+  normalize_map:
+    enabled: true
+    temperature: 0.0
+    request_timeout_s: 1200
+  reduce:
+    enabled: true
+  validate:
+    enabled: true
+    fail_on_hard_errors: true
+  export:
+    enabled: true
+    multi_file: true

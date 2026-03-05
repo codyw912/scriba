@@ -1,0 +1,24 @@
+{
+  "required_endpoints": [
+    "POST /v1/auth/tokens",
+    "POST /v1/auth/refresh",
+    "POST /v1/sessions/revoke"
+  ],
+  "required_headings": [
+    "auth and sessions guide",
+    "create access token",
+    "refresh access token",
+    "revoke session",
+    "security notes"
+  ],
+  "required_literals": [
+    "expires_in=900",
+    "Idempotency-Key",
+    "Maximum clock skew tolerance is 30 seconds.",
+    "401",
+    "403"
+  ],
+  "forbidden_literals": [
+    "DELETE /v1/sessions/revoke"
+  ]
+}

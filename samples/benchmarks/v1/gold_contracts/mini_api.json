@@ -1,0 +1,15 @@
+{
+  "required_endpoints": [
+    "GET /v1/health",
+    "POST /v1/echo"
+  ],
+  "required_headings": [
+    "mini api reference",
+    "health",
+    "echo"
+  ],
+  "required_literals": [
+    "Returns service status.",
+    "Returns payload data."
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "required_endpoints": [
+    "GET /v1/billing/usage",
+    "GET /v1/billing/invoice-preview",
+    "GET /v1/limits"
+  ],
+  "required_headings": [
+    "billing and limits reference",
+    "retrieve usage summary",
+    "retrieve invoice preview",
+    "retrieve rate limits",
+    "pricing notes"
+  ],
+  "required_literals": [
+    "0.5%",
+    "600 requests per minute",
+    "12000 tokens per minute",
+    "4 decimal places",
+    "00:00 UTC"
+  ],
+  "forbidden_literals": [
+    "POST /v1/limits"
+  ]
+}

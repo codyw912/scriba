@@ -1,0 +1,25 @@
+{
+  "required_endpoints": [
+    "POST /v1/events/replay",
+    "GET /v1/webhooks/deliveries/{delivery_id}",
+    "POST /v1/webhooks"
+  ],
+  "required_headings": [
+    "error handling and retry catalog",
+    "replay event",
+    "fetch delivery status",
+    "register webhook",
+    "error codes"
+  ],
+  "required_literals": [
+    "X-Signature-256",
+    "5s",
+    "30s",
+    "120s",
+    "Maximum retries: 4",
+    "429"
+  ],
+  "forbidden_literals": [
+    "GET /v1/events/replay"
+  ]
+}

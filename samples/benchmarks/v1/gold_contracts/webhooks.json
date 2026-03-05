@@ -1,0 +1,17 @@
+{
+  "required_endpoints": [
+    "POST /v1/webhooks",
+    "GET /v1/webhooks",
+    "GET /v1/webhooks/deliveries"
+  ],
+  "required_headings": [
+    "webhooks api",
+    "register webhook",
+    "list webhooks",
+    "delivery events"
+  ],
+  "required_literals": [
+    "retry up to 3 times",
+    "X-Signature-256"
+  ]
+}

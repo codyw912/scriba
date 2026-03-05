@@ -1,0 +1,46 @@
+version: 1
+
+artifacts:
+  root: ./artifacts
+  run_id: auto
+
+backends:
+  local_text:
+    adapter: openai_http
+    topology: local_spawned
+    provider: llama_cpp
+    model_origin: local_weights
+    base_url: http://127.0.0.1:8095
+    inference_path: /v1/chat/completions
+    health_path: /health
+    startup_timeout_s: 900
+    command: llama-server --host 127.0.0.1 --port 8095 --model /Users/cody/.cache/huggingface/hub/models--unsloth--Qwen3.5-9B-GGUF/snapshots/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-BF16.gguf --alias qwen3.5-9b-bf16 --ctx-size 8192 --n-predict 1024 --reasoning-budget 0 --chat-template-kwargs '{"enable_thinking":false}'
+    api_key: ""
+
+roles:
+  normalize_text:
+    backend: local_text
+    model: qwen3.5-9b-bf16
+
+stages:
+  extract:
+    enabled: true
+  clean:
+    enabled: true
+  sectionize:
+    enabled: true
+    target_tokens: 3500
+    overlap_tokens: 300
+  normalize_map:
+    enabled: true
+    temperature: 0.0
+    request_timeout_s: 1200
+    max_output_tokens: 1024
+  reduce:
+    enabled: true
+  validate:
+    enabled: true
+    fail_on_hard_errors: true
+  export:
+    enabled: true
+    multi_file: true
