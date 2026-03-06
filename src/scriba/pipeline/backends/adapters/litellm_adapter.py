@@ -1,13 +1,13 @@
-"""OpenAI-compatible HTTP backend adapters and client."""
+"""LiteLLM-based backend adapters and client."""
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
+import sys
 import time
 from typing import Any
-import os
-import sys
 
 import httpx
 
@@ -19,14 +19,19 @@ from scriba.pipeline.backends.errors import (
     ModelRequestTimeoutError,
     RateLimitError,
 )
-from scriba.pipeline.backends.rate_limit import choose_retry_delay
+from scriba.pipeline.backends.metadata_cerebras import (
+    lookup_context_length_from_cerebras,
+    lookup_max_output_tokens_from_cerebras,
+)
 from scriba.pipeline.backends.metadata_openrouter import (
     lookup_context_length_from_openrouter,
 )
+from scriba.pipeline.backends.rate_limit import choose_retry_delay
 from scriba.pipeline.backends.response_parsing import (
+    coerce_completion_payload,
     coerce_usage_int,
     extract_completion_text,
-    parse_json_response_payload,
+    extract_provider_error_message,
     sanitize_model_markdown,
 )
 from scriba.pipeline.backends.types import (
@@ -35,6 +40,11 @@ from scriba.pipeline.backends.types import (
     ModelEndpoint,
 )
 from scriba.pipeline.profile import BackendConfig
+
+try:
+    from litellm import completion as litellm_completion
+except ImportError:  # pragma: no cover - import path validated in runtime
+    litellm_completion = None
 
 
 DEFAULT_HEALTH_POST_PAYLOAD = {
@@ -45,10 +55,39 @@ DEFAULT_HEALTH_POST_PAYLOAD = {
 _MAX_MODEL_REQUEST_ATTEMPTS = 3
 _RETRYABLE_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
 _MODEL_REQUEST_RETRY_BASE_DELAY_S = 0.75
+_OPENAI_COMPATIBLE_PROVIDERS = {
+    "local",
+    "lmstudio",
+    "llama_cpp",
+    "vllm",
+    "openai_compatible",
+    "glm_ocr",
+}
+_PROVIDER_PREFIX_MAP = {
+    "openrouter": "openrouter",
+    "cerebras": "cerebras",
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "gemini": "gemini",
+    "google": "gemini",
+    "groq": "groq",
+    "mistral": "mistral",
+    "together": "together_ai",
+    "together_ai": "together_ai",
+    "fireworks": "fireworks_ai",
+    "fireworks_ai": "fireworks_ai",
+    "xai": "xai",
+    "deepseek": "deepseek",
+}
+_KNOWN_MODEL_PREFIXES = set(_PROVIDER_PREFIX_MAP.values()) | {
+    "vertex_ai",
+    "azure",
+    "ollama",
+}
 
 
-class OpenAIHTTPChatClient:
-    """OpenAI-compatible chat completion client."""
+class LiteLLMChatClient:
+    """LiteLLM chat completion client."""
 
     def __init__(self, endpoint: ModelEndpoint) -> None:
         self.endpoint = endpoint
@@ -63,17 +102,28 @@ class OpenAIHTTPChatClient:
         reasoning_effort: str | None = None,
         reasoning_exclude: bool | None = None,
     ) -> CompletionResult:
-        headers = {"Content-Type": "application/json"}
-        if self.endpoint.api_key:
-            headers["Authorization"] = f"Bearer {self.endpoint.api_key}"
+        if litellm_completion is None:  # pragma: no cover - dependency guard
+            raise ModelClientError(
+                "litellm adapter requires the 'litellm' package. Install with: uv add litellm"
+            )
 
         payload: dict[str, Any] = {
-            "model": self.endpoint.model,
+            "model": _resolve_litellm_model_name(
+                provider=self.endpoint.provider,
+                model=self.endpoint.model,
+            ),
             "messages": messages,
             "temperature": temperature,
+            "timeout": float(request_timeout_s),
         }
         if max_output_tokens is not None:
             payload["max_tokens"] = max_output_tokens
+
+        if self.endpoint.api_key:
+            payload["api_key"] = self.endpoint.api_key
+        if self.endpoint.base_url:
+            payload["api_base"] = self.endpoint.base_url
+
         if reasoning_effort is not None or reasoning_exclude is not None:
             reasoning_payload: dict[str, Any] = {}
             if reasoning_effort is not None:
@@ -84,84 +134,74 @@ class OpenAIHTTPChatClient:
                 payload["reasoning"] = reasoning_payload
 
         started = time.perf_counter()
-        data: dict[str, Any] | None = None
+        response_payload: dict[str, Any] | None = None
         for attempt in range(1, _MAX_MODEL_REQUEST_ATTEMPTS + 1):
             try:
-                with httpx.Client(timeout=float(request_timeout_s)) as client:
-                    response = client.post(
-                        self.endpoint.inference_url,
-                        headers=headers,
-                        json=payload,
-                    )
-                    response.raise_for_status()
-                    data = parse_json_response_payload(
-                        status_code=response.status_code,
-                        body_text=response.text,
-                    )
+                raw = litellm_completion(**payload)
+                response_payload = coerce_completion_payload(raw)
                 break
-            except httpx.TimeoutException as exc:
-                if attempt < _MAX_MODEL_REQUEST_ATTEMPTS:
-                    time.sleep(_model_request_retry_delay_s(attempt))
-                    continue
-                raise ModelRequestTimeoutError(
-                    f"Model request timed out after {request_timeout_s}s"
-                ) from exc
-            except httpx.HTTPStatusError as exc:
-                response_text = exc.response.text if exc.response is not None else ""
-                if (
-                    exc.response is not None
-                    and exc.response.status_code == 400
-                    and _looks_like_context_error(response_text)
-                ):
-                    raise ContextWindowError(response_text) from exc
+            except Exception as exc:  # pragma: no cover - provider/network behavior
+                error_text = str(exc)
+                status_code = _status_code_from_exception(exc)
 
-                status_code = (
-                    exc.response.status_code if exc.response is not None else None
-                )
-                if (
-                    status_code in _RETRYABLE_HTTP_STATUS_CODES
-                    and attempt < _MAX_MODEL_REQUEST_ATTEMPTS
-                ):
-                    retry_delay_s = choose_retry_delay(
-                        attempt=attempt,
-                        base_delay_s=_MODEL_REQUEST_RETRY_BASE_DELAY_S,
-                        headers=exc.response.headers
-                        if exc.response is not None
-                        else None,
-                        error_text=response_text,
-                    )
-                    time.sleep(retry_delay_s)
-                    continue
+                if _looks_like_context_error(error_text):
+                    raise ContextWindowError(error_text) from exc
+
+                if _looks_like_timeout_error(error_text):
+                    if attempt < _MAX_MODEL_REQUEST_ATTEMPTS:
+                        time.sleep(_model_request_retry_delay_s(attempt))
+                        continue
+                    raise ModelRequestTimeoutError(
+                        f"Model request timed out after {request_timeout_s}s"
+                    ) from exc
 
                 if status_code == 429:
                     retry_delay_s = choose_retry_delay(
                         attempt=attempt,
                         base_delay_s=_MODEL_REQUEST_RETRY_BASE_DELAY_S,
-                        headers=exc.response.headers
-                        if exc.response is not None
-                        else None,
-                        error_text=response_text,
+                        headers=_headers_from_exception(exc),
+                        error_text=error_text,
                     )
+                    if attempt < _MAX_MODEL_REQUEST_ATTEMPTS:
+                        time.sleep(retry_delay_s)
+                        continue
                     raise RateLimitError(
-                        f"HTTP 429: {response_text or str(exc)}",
+                        f"HTTP 429: {error_text}",
                         retry_after_s=retry_delay_s,
                     ) from exc
 
-                raise ModelClientError(
-                    f"HTTP {status_code or 'unknown'}: {response_text or str(exc)}"
-                ) from exc
-            except ModelClientError:
-                raise
-            except Exception as exc:
-                raise ModelClientError(str(exc)) from exc
+                if (
+                    status_code in _RETRYABLE_HTTP_STATUS_CODES
+                    or _looks_like_retryable_provider_error(error_text)
+                ) and attempt < _MAX_MODEL_REQUEST_ATTEMPTS:
+                    retry_delay_s = choose_retry_delay(
+                        attempt=attempt,
+                        base_delay_s=_MODEL_REQUEST_RETRY_BASE_DELAY_S,
+                        headers=_headers_from_exception(exc),
+                        error_text=error_text,
+                    )
+                    time.sleep(retry_delay_s)
+                    continue
 
-        if data is None:
+                raise ModelClientError(error_text) from exc
+
+        if response_payload is None:
             raise ModelClientError("Model request failed without response payload")
 
-        elapsed_s = time.perf_counter() - started
-        text = extract_completion_text(data)
+        provider_error = extract_provider_error_message(response_payload)
+        if provider_error:
+            raise ModelClientError(
+                f"Model API returned error payload: {provider_error}"
+            )
 
-        usage = data.get("usage", {}) if isinstance(data, dict) else {}
+        elapsed_s = time.perf_counter() - started
+        text = extract_completion_text(response_payload)
+
+        usage = (
+            response_payload.get("usage", {})
+            if isinstance(response_payload, dict)
+            else {}
+        )
         prompt_tokens = coerce_usage_int(
             usage.get("prompt_tokens") if isinstance(usage, dict) else None
         )
@@ -189,7 +229,7 @@ class OpenAIHTTPChatClient:
         )
 
 
-class LocalProcessOpenAIBackendAdapter(BackendAdapter):
+class LocalProcessLiteLLMBackendAdapter(BackendAdapter):
     """Local process backend started via command."""
 
     def __init__(self, *, name: str, config: BackendConfig) -> None:
@@ -200,18 +240,11 @@ class LocalProcessOpenAIBackendAdapter(BackendAdapter):
         self._ensure_process_running()
         self._wait_until_healthy(model=model)
 
-    def create_chat_client(self, *, endpoint: ModelEndpoint) -> OpenAIHTTPChatClient:
-        return OpenAIHTTPChatClient(endpoint)
+    def create_chat_client(self, *, endpoint: ModelEndpoint) -> LiteLLMChatClient:
+        return LiteLLMChatClient(endpoint)
 
     def model_chunking_hints(self, *, model: str) -> ChunkingHints:
-        context_length = lookup_context_length_from_openrouter(
-            model=model,
-            provider=self.config.provider,
-        )
-        return ChunkingHints(
-            context_length=context_length,
-            context_length_source="openrouter_models" if context_length else None,
-        )
+        return _chunking_hints_for_provider(provider=self.config.provider, model=model)
 
     def _ensure_process_running(self) -> None:
         if self._process is not None and self._process.poll() is None:
@@ -324,26 +357,47 @@ class LocalProcessOpenAIBackendAdapter(BackendAdapter):
             self._process = None
 
 
-class AttachedOrRemoteOpenAIBackendAdapter(BackendAdapter):
-    """Attached or remote OpenAI-compatible backend adapter."""
+class AttachedOrRemoteLiteLLMBackendAdapter(BackendAdapter):
+    """Attached or remote LiteLLM-backed adapter."""
 
     def ensure_ready(self, *, model: str) -> None:
+        if not self.config.base_url.strip():
+            return
         ok, error = _probe_health(config=self.config, model=model)
         if not ok:
             raise BackendError(f"Backend '{self.name}' is not healthy ({error})")
 
-    def create_chat_client(self, *, endpoint: ModelEndpoint) -> OpenAIHTTPChatClient:
-        return OpenAIHTTPChatClient(endpoint)
+    def create_chat_client(self, *, endpoint: ModelEndpoint) -> LiteLLMChatClient:
+        return LiteLLMChatClient(endpoint)
 
     def model_chunking_hints(self, *, model: str) -> ChunkingHints:
-        context_length = lookup_context_length_from_openrouter(
+        return _chunking_hints_for_provider(provider=self.config.provider, model=model)
+
+
+def _chunking_hints_for_provider(*, provider: str, model: str) -> ChunkingHints:
+    context_length = lookup_context_length_from_openrouter(
+        model=model,
+        provider=provider,
+    )
+    context_source = "openrouter_models" if context_length else None
+
+    max_output_tokens_limit: int | None = None
+    if context_length is None:
+        context_length = lookup_context_length_from_cerebras(
             model=model,
-            provider=self.config.provider,
+            provider=provider,
         )
-        return ChunkingHints(
-            context_length=context_length,
-            context_length_source="openrouter_models" if context_length else None,
+        context_source = "cerebras_model_catalog" if context_length else None
+        max_output_tokens_limit = lookup_max_output_tokens_from_cerebras(
+            model=model,
+            provider=provider,
         )
+
+    return ChunkingHints(
+        context_length=context_length,
+        context_length_source=context_source,
+        max_output_tokens_limit=max_output_tokens_limit,
+    )
 
 
 def _probe_health(*, config: BackendConfig, model: str) -> tuple[bool, str]:
@@ -377,11 +431,86 @@ def _probe_health(*, config: BackendConfig, model: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _resolve_litellm_model_name(*, provider: str, model: str) -> str:
+    stripped_model = model.strip()
+    if not stripped_model:
+        return model
+
+    if "/" in stripped_model:
+        maybe_prefix = stripped_model.split("/", 1)[0].strip().lower()
+        if maybe_prefix in _KNOWN_MODEL_PREFIXES:
+            return stripped_model
+
+    provider_key = provider.strip().lower()
+    if provider_key in _OPENAI_COMPATIBLE_PROVIDERS:
+        return f"openai/{stripped_model}"
+
+    prefix = _PROVIDER_PREFIX_MAP.get(provider_key, provider_key)
+    if not prefix:
+        return stripped_model
+    return f"{prefix}/{stripped_model}"
+
+
 def _model_request_retry_delay_s(attempt: int) -> float:
     return choose_retry_delay(
         attempt=attempt,
         base_delay_s=_MODEL_REQUEST_RETRY_BASE_DELAY_S,
     )
+
+
+def _status_code_from_exception(exc: Exception) -> int | None:
+    for attr in ("status_code", "status"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+    return None
+
+
+def _headers_from_exception(exc: Exception) -> dict[str, str] | None:
+    response = getattr(exc, "response", None)
+    if response is not None:
+        headers = getattr(response, "headers", None)
+        if headers is not None:
+            try:
+                return {str(k).lower(): str(v) for k, v in headers.items()}
+            except Exception:
+                pass
+
+    headers_attr = getattr(exc, "headers", None)
+    if headers_attr is not None:
+        try:
+            return {str(k).lower(): str(v) for k, v in headers_attr.items()}
+        except Exception:
+            return None
+    return None
+
+
+def _looks_like_retryable_provider_error(error_text: str) -> bool:
+    text = error_text.lower()
+    return (
+        "too_many_requests" in text
+        or "rate limit" in text
+        or "queue_exceeded" in text
+        or "timeout" in text
+        or "temporarily unavailable" in text
+        or "error code: 429" in text
+        or "error code: 500" in text
+        or "error code: 502" in text
+        or "error code: 503" in text
+        or "error code: 504" in text
+    )
+
+
+def _looks_like_timeout_error(error_text: str) -> bool:
+    text = error_text.lower()
+    return "timed out" in text or "timeout" in text or "deadline exceeded" in text
 
 
 def _looks_like_context_error(response_text: str) -> bool:

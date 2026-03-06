@@ -6,7 +6,7 @@ artifacts:
 
 backends:
   text_backend:
-    adapter: openai_http
+    adapter: litellm
     topology: local_attached
     provider: lmstudio
     model_origin: local_weights

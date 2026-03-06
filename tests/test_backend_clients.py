@@ -4,42 +4,24 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import httpx
 import pytest
 
 from scriba.pipeline.backends import ModelEndpoint
-from scriba.pipeline.backends.adapters.openai_http import OpenAIHTTPChatClient
+from scriba.pipeline.backends.adapters.litellm_adapter import LiteLLMChatClient
 from scriba.pipeline.backends.errors import ModelClientError, RateLimitError
 
 
-class _DummyClient:
-    def __init__(self, response: httpx.Response) -> None:
-        self._response = response
-
-    def __enter__(self) -> "_DummyClient":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
-        return None
-
-    def post(self, *args, **kwargs) -> httpx.Response:  # type: ignore[no-untyped-def]
-        return self._response
-
-
-class _SequenceClient:
-    def __init__(self, responses: list[httpx.Response]) -> None:
-        self._responses = list(responses)
-
-    def __enter__(self) -> "_SequenceClient":
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
-        return None
-
-    def post(self, *args, **kwargs) -> httpx.Response:  # type: ignore[no-untyped-def]
-        if not self._responses:
-            raise AssertionError("No more queued responses")
-        return self._responses.pop(0)
+class _FakeLiteLLMError(Exception):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.headers = headers or {}
 
 
 def _endpoint() -> ModelEndpoint:
@@ -50,40 +32,35 @@ def _endpoint() -> ModelEndpoint:
         inference_url="http://127.0.0.1:8090/v1/chat/completions",
         model="qwen/qwen3.5-35b-a3b",
         api_key="",
-        adapter="openai_http",
+        adapter="litellm",
         topology="remote",
         provider="openrouter",
     )
 
 
-def test_openai_http_client_parses_text_content_list() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    response = httpx.Response(
-        200,
-        request=request,
-        json={
-            "choices": [
-                {
-                    "message": {
-                        "content": [
-                            {"type": "text", "text": "First line"},
-                            {"type": "text", "text": "Second line"},
-                        ]
-                    }
+def test_litellm_client_parses_text_content_list() -> None:
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "First line"},
+                        {"type": "text", "text": "Second line"},
+                    ]
                 }
-            ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15,
-            },
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
         },
-    )
-    client = OpenAIHTTPChatClient(_endpoint())
+    }
+    client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-        return_value=_DummyClient(response),
+        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        return_value=response,
     ):
         result = client.complete(
             messages=[{"role": "user", "content": "hello"}],
@@ -98,18 +75,13 @@ def test_openai_http_client_parses_text_content_list() -> None:
     assert result.total_tokens == 15
 
 
-def test_openai_http_client_raises_for_error_payload() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    response = httpx.Response(
-        200,
-        request=request,
-        json={"error": {"code": "rate_limited", "message": "try again later"}},
-    )
-    client = OpenAIHTTPChatClient(_endpoint())
+def test_litellm_client_raises_for_error_payload() -> None:
+    response = {"error": {"code": "rate_limited", "message": "try again later"}}
+    client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-        return_value=_DummyClient(response),
+        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        return_value=response,
     ):
         with pytest.raises(ModelClientError, match="rate_limited"):
             client.complete(
@@ -120,14 +92,12 @@ def test_openai_http_client_raises_for_error_payload() -> None:
             )
 
 
-def test_openai_http_client_raises_for_missing_content() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    response = httpx.Response(200, request=request, json={"id": "abc123"})
-    client = OpenAIHTTPChatClient(_endpoint())
+def test_litellm_client_raises_for_missing_content() -> None:
+    client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-        return_value=_DummyClient(response),
+        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        return_value={"id": "abc123"},
     ):
         with pytest.raises(ModelClientError, match="missing completion content"):
             client.complete(
@@ -138,55 +108,44 @@ def test_openai_http_client_raises_for_missing_content() -> None:
             )
 
 
-def test_openai_http_client_raises_for_non_json_body() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    response = httpx.Response(
-        200,
-        request=request,
-        content=b"<html>not-json</html>",
-        headers={"Content-Type": "text/html"},
-    )
-    client = OpenAIHTTPChatClient(_endpoint())
+def test_litellm_client_retries_retryable_http_status() -> None:
+    client = LiteLLMChatClient(_endpoint())
 
-    with patch(
-        "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-        return_value=_DummyClient(response),
-    ):
-        with pytest.raises(ModelClientError, match="not valid JSON"):
-            client.complete(
-                messages=[{"role": "user", "content": "hello"}],
-                temperature=0.0,
-                request_timeout_s=10,
-                max_output_tokens=128,
-            )
-
-
-def test_openai_http_client_retries_retryable_http_status() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    first = httpx.Response(
-        429,
-        request=request,
-        headers={"x-ratelimit-reset-tokens-minute": "3.5"},
-        json={"error": {"message": "rate limited"}},
-    )
-    second = httpx.Response(
-        200,
-        request=request,
-        json={
-            "choices": [{"message": {"content": "ok"}}],
-            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    call_queue: list[object] = [
+        _FakeLiteLLMError(
+            "rate limited",
+            status_code=429,
+            headers={"x-ratelimit-reset-tokens-minute": "3.5"},
+        ),
+        {
+            "choices": [
+                {
+                    "message": {"content": "ok"},
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+            },
         },
-    )
-    client = OpenAIHTTPChatClient(_endpoint())
-    sequence = _SequenceClient([first, second])
+    ]
+
+    def _fake_completion(**_: object) -> object:
+        if not call_queue:
+            raise AssertionError("No more queued responses")
+        next_item = call_queue.pop(0)
+        if isinstance(next_item, Exception):
+            raise next_item
+        return next_item
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-            return_value=sequence,
+            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            side_effect=_fake_completion,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.time.sleep",
+            "scriba.pipeline.backends.adapters.litellm_adapter.time.sleep",
             return_value=None,
         ) as sleep_mock,
     ):
@@ -201,37 +160,42 @@ def test_openai_http_client_retries_retryable_http_status() -> None:
     sleep_mock.assert_called_once_with(3.5)
 
 
-def test_openai_http_client_raises_rate_limit_error_after_retries() -> None:
-    request = httpx.Request("POST", "http://127.0.0.1:8090/v1/chat/completions")
-    responses = [
-        httpx.Response(
-            429,
-            request=request,
+def test_litellm_client_raises_rate_limit_error_after_retries() -> None:
+    call_queue: list[object] = [
+        _FakeLiteLLMError(
+            "rate limited",
+            status_code=429,
             headers={"x-ratelimit-reset-tokens-minute": "2.0"},
-            json={"error": {"message": "rate limited"}},
         ),
-        httpx.Response(
-            429,
-            request=request,
+        _FakeLiteLLMError(
+            "rate limited",
+            status_code=429,
             headers={"x-ratelimit-reset-tokens-minute": "2.0"},
-            json={"error": {"message": "rate limited"}},
         ),
-        httpx.Response(
-            429,
-            request=request,
+        _FakeLiteLLMError(
+            "rate limited",
+            status_code=429,
             headers={"x-ratelimit-reset-tokens-minute": "2.0"},
-            json={"error": {"message": "rate limited"}},
         ),
     ]
-    client = OpenAIHTTPChatClient(_endpoint())
+
+    def _fake_completion(**_: object) -> object:
+        if not call_queue:
+            raise AssertionError("No more queued responses")
+        next_item = call_queue.pop(0)
+        if isinstance(next_item, Exception):
+            raise next_item
+        return next_item
+
+    client = LiteLLMChatClient(_endpoint())
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.httpx.Client",
-            return_value=_SequenceClient(responses),
+            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            side_effect=_fake_completion,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.time.sleep",
+            "scriba.pipeline.backends.adapters.litellm_adapter.time.sleep",
             return_value=None,
         ),
     ):

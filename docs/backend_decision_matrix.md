@@ -7,9 +7,9 @@ backend-agnostic: pick what matches your constraints, then verify with telemetry
 
 | Priority | Start here | Why | Watch-outs |
 |---|---|---|---|
-| Hosted low-cost baseline | `profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml` | Very low token cost and broad context support on OpenRouter | Throughput is provider-dependent; rely on measured runs and Pareto output |
-| Hosted low-cost quality candidate | `profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml` | Competitive quality/cost on current normalization fixtures | May underperform on harder long-context documents |
-| Hosted ultra-cheap floor | `profiles/remote/pipeline.profile.remote_openai_mistral_nemo.example.yaml` | Extremely low per-token cost; useful as cost anchor | Quality may trail stronger Qwen/DeepSeek classes |
+| Hosted low-cost baseline | `profiles/remote/pipeline.profile.remote_openrouter_qwen35_flash.example.yaml` | Very low token cost and broad context support on OpenRouter | Throughput is provider-dependent; rely on measured runs and Pareto output |
+| Hosted low-cost quality candidate | `profiles/remote/pipeline.profile.remote_openrouter_qwen25_7b.example.yaml` | Competitive quality/cost on current normalization fixtures | May underperform on harder long-context documents |
+| Hosted ultra-cheap floor | `profiles/remote/pipeline.profile.remote_openrouter_mistral_nemo.example.yaml` | Extremely low per-token cost; useful as cost anchor | Quality may trail stronger Qwen/DeepSeek classes |
 | Fastest iteration | Local-attached or remote OpenAI-compatible profile | Attached/remote services can provide higher throughput and larger contexts | Confirm whether weights are local vs hosted for privacy requirements |
 | Local-only development | Local-process profile | No external dependency, repeatable offline workflow | Throughput and startup costs vary by hardware |
 | Mixed strategy | Local OCR + remote text model | Balances local control with faster normalization | More moving parts to configure and monitor |

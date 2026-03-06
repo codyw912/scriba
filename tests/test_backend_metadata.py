@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from scriba.pipeline.backends.adapters.cerebras_sdk import CerebrasSDKBackendAdapter
-from scriba.pipeline.backends.adapters.openai_http import (
-    AttachedOrRemoteOpenAIBackendAdapter,
+from scriba.pipeline.backends.adapters.litellm_adapter import (
+    AttachedOrRemoteLiteLLMBackendAdapter,
 )
 from scriba.pipeline.backends.metadata_cerebras import (
     lookup_context_length_from_cerebras,
@@ -59,11 +58,11 @@ def test_lookup_max_output_tokens_from_cerebras_by_tier(monkeypatch) -> None:
     assert paygo_value == 40000
 
 
-def test_openai_http_adapter_exposes_chunking_hints_from_openrouter_lookup() -> None:
-    adapter = AttachedOrRemoteOpenAIBackendAdapter(
+def test_litellm_adapter_exposes_chunking_hints_from_openrouter_lookup() -> None:
+    adapter = AttachedOrRemoteLiteLLMBackendAdapter(
         name="remote_text",
         config=BackendConfig(
-            adapter="openai_http",
+            adapter="litellm",
             topology="remote",
             provider="openrouter",
             base_url="https://openrouter.ai/api/v1",
@@ -71,7 +70,7 @@ def test_openai_http_adapter_exposes_chunking_hints_from_openrouter_lookup() -> 
     )
 
     with patch(
-        "scriba.pipeline.backends.adapters.openai_http.lookup_context_length_from_openrouter",
+        "scriba.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
         return_value=128000,
     ):
         hints = adapter.model_chunking_hints(model="qwen/qwen3.5-35b-a3b")
@@ -80,13 +79,15 @@ def test_openai_http_adapter_exposes_chunking_hints_from_openrouter_lookup() -> 
     assert hints.context_length_source == "openrouter_models"
 
 
-def test_cerebras_adapter_exposes_chunking_hints_from_catalog(monkeypatch) -> None:
+def test_litellm_adapter_exposes_cerebras_chunking_hints_from_catalog(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv("SCRIBA_CEREBRAS_TIER", raising=False)
 
-    adapter = CerebrasSDKBackendAdapter(
+    adapter = AttachedOrRemoteLiteLLMBackendAdapter(
         name="remote_text",
         config=BackendConfig(
-            adapter="cerebras_sdk",
+            adapter="litellm",
             topology="remote",
             provider="cerebras",
             base_url="https://api.cerebras.ai",

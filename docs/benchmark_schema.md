@@ -7,7 +7,7 @@ comparisons in `scriba` phase 5.
 
 Backends are described using explicit axes:
 
-- `adapter` (for example `openai_http`)
+- `adapter` (for example `litellm`)
 - `topology` (`local_spawned`, `local_attached`, `remote`)
 - `provider` (for example `mlx_lm`, `lmstudio`, `openrouter`)
 - `model_origin` (`local_weights`, `hosted_weights`, `unknown`)

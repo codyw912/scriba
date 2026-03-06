@@ -28,14 +28,14 @@ bash scripts/quick_openrouter_bench.sh --campaign-id hosted-lowcost-v2 --max-run
 ## Profiles in the hosted set
 
 - Low-cost lane:
-  - `profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml`
-  - `profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml`
-  - `profiles/remote/pipeline.profile.remote_openai_qwen3_coder_next.example.yaml`
-  - `profiles/remote/pipeline.profile.remote_openai_llama31_8b.example.yaml`
-  - `profiles/remote/pipeline.profile.remote_openai_mistral_nemo.example.yaml`
-  - `profiles/remote/pipeline.profile.remote_openai_gpt4o_mini.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_qwen25_7b.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_qwen35_flash.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_qwen3_coder_next.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_llama31_8b.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_mistral_nemo.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter_gpt4o_mini.example.yaml`
 - Baseline added by `--include-baseline`:
-  - `profiles/remote/pipeline.profile.remote_openai.example.yaml`
+  - `profiles/remote/pipeline.profile.remote_openrouter.example.yaml`
 
 ## Quick validation checks after v2 run
 

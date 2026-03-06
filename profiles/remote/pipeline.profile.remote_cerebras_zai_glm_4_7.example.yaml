@@ -6,11 +6,10 @@ artifacts:
 
 backends:
   remote_text:
-    adapter: cerebras_sdk
+    adapter: litellm
     topology: remote
     provider: cerebras
     model_origin: hosted_weights
-    base_url: https://api.cerebras.ai
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30
@@ -19,7 +18,7 @@ backends:
 roles:
   normalize_text:
     backend: remote_text
-    model: qwen-3-235b-a22b-instruct-2507
+    model: zai-glm-4.7
 
 stages:
   extract:

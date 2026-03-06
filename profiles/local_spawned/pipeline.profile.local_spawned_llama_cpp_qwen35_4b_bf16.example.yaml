@@ -6,7 +6,7 @@ artifacts:
 
 backends:
   local_text:
-    adapter: openai_http
+    adapter: litellm
     topology: local_spawned
     provider: llama_cpp
     model_origin: local_weights

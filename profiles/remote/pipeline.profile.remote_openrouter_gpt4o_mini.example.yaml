@@ -6,20 +6,19 @@ artifacts:
 
 backends:
   remote_text:
-    adapter: cerebras_sdk
+    adapter: litellm
     topology: remote
-    provider: cerebras
+    provider: openrouter
     model_origin: hosted_weights
-    base_url: https://api.cerebras.ai
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30
-    api_key: "${CEREBRAS_API_KEY}"
+    api_key: "${OPENROUTER_API_KEY}"
 
 roles:
   normalize_text:
     backend: remote_text
-    model: gpt-oss-120b
+    model: openai/gpt-4o-mini
 
 stages:
   extract:
@@ -30,10 +29,11 @@ stages:
     enabled: true
   normalize_map:
     enabled: true
-    workers: 1
     temperature: 0.0
-    reasoning_effort: low
     request_timeout_s: 900
+    max_output_tokens: 1024
+    reasoning_effort: none
+    reasoning_exclude: true
   reduce:
     enabled: true
   validate:

@@ -26,9 +26,29 @@ Run on a sample markdown fixture:
 
 ```bash
 uv run scriba run \
-  --profile profiles/pipeline.profile.example.yaml \
   --input samples/docs/mini_api.md
 ```
+
+By default, `scriba` uses the built-in `auto` preset when neither `--profile`
+nor `--preset` is provided. `auto` picks the first configured provider API key
+from `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, or `OPENAI_API_KEY`.
+
+If no provider key is set, use `--preset passthrough` (no model normalization)
+or pass an explicit `--profile`.
+
+Run with a built-in preset (no profile path needed):
+
+```bash
+uv run scriba run \
+  --preset openrouter \
+  --input /path/to/file.pdf
+```
+
+Optional quick overrides:
+
+- `--text-model <model_id>`
+- `--ocr-model <model_id>`
+- `--artifacts-root <path>`
 
 Validate profile + input before running:
 
@@ -49,8 +69,14 @@ uv run scriba status \
 ## CLI
 
 - `scriba run --profile ... --input ... [--run-id ...] [--resume]`
+- `scriba run --input ...` (defaults to `--preset auto`)
+- `scriba run --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
 - `scriba status --profile ... --run-id ...`
+- `scriba status --run-id ...` (defaults to `--preset auto`)
+- `scriba status --preset <auto|openrouter|cerebras|openai|passthrough> --run-id ...`
 - `scriba doctor --profile ... --input ...`
+- `scriba doctor --input ...` (defaults to `--preset auto`)
+- `scriba doctor --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
 
 ## Profiles
 
@@ -87,6 +113,7 @@ Copy `.env.example` to `.env` and set credentials as needed:
 
 - `OPENROUTER_API_KEY`
 - `CEREBRAS_API_KEY`
+- `OPENAI_API_KEY`
 
 Useful runtime controls:
 

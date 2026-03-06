@@ -10,17 +10,17 @@ backends:
     topology: local_spawned
     provider: llama_cpp
     model_origin: local_weights
-    base_url: http://127.0.0.1:8097
+    base_url: http://127.0.0.1:8093
     inference_path: /v1/chat/completions
     health_path: /health
     startup_timeout_s: 900
-    command: llama-server --host 127.0.0.1 --port 8097 --model /Users/cody/.cache/huggingface/hub/models--unsloth--Qwen3.5-2B-GGUF/snapshots/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-BF16.gguf --alias qwen3.5-2b-bf16 --ctx-size 8192 --n-predict 1024 --reasoning-budget 0 --chat-template-kwargs '{"enable_thinking":false}'
+    command: llama-server --host 127.0.0.1 --port 8093 --model /Users/cody/.cache/huggingface/hub/models--unsloth--Qwen3.5-27B-GGUF/snapshots/c4e1090fa795b92258b55762c28f96bf32aad85a/Qwen3.5-27B-Q4_K_M.gguf --alias qwen3.5-27b-q4_k_m --ctx-size 8192 --n-predict 1024 --reasoning-budget 0 --chat-template-kwargs '{"enable_thinking":false}'
     api_key: ""
 
 roles:
   normalize_text:
     backend: local_text
-    model: qwen3.5-2b-bf16
+    model: qwen3.5-27b-q4_k_m
 
 stages:
   extract:

@@ -39,7 +39,7 @@ def _write_remote_profile(tmp_path: Path, *, api_key: str = "") -> Path:
                 f"  root: {artifacts_root}",
                 "backends:",
                 "  remote_text:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: remote",
                 "    provider: openrouter",
                 "    model_origin: hosted_weights",
@@ -68,7 +68,7 @@ def _write_cerebras_profile(tmp_path: Path, *, api_key: str = '"token"') -> Path
                 f"  root: {artifacts_root}",
                 "backends:",
                 "  remote_text:",
-                "    adapter: cerebras_sdk",
+                "    adapter: litellm",
                 "    topology: remote",
                 "    provider: cerebras",
                 "    model_origin: hosted_weights",
@@ -140,7 +140,7 @@ def test_role_for_extract_uses_ocr_vision_for_pdf_inputs(tmp_path: Path) -> None
                 f"  root: {artifacts_root}",
                 "backends:",
                 "  ocr_backend:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: local_attached",
                 "    provider: lmstudio",
                 "    base_url: http://127.0.0.1:8090",
@@ -209,11 +209,11 @@ def test_run_remote_profile_with_mocked_health_and_completion(tmp_path: Path) ->
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.openai_http._probe_health",
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.OpenAIHTTPChatClient.complete",
+            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nGET /v1/ping\n",
                 prompt_tokens=100,
@@ -247,15 +247,15 @@ def test_run_sectionize_uses_metadata_from_normalize_role(tmp_path: Path) -> Non
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.openai_http._probe_health",
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.lookup_context_length_from_openrouter",
+            "scriba.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
             return_value=20000,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.openai_http.OpenAIHTTPChatClient.complete",
+            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nGET /v1/ping\n",
                 prompt_tokens=80,
@@ -282,7 +282,7 @@ def test_run_sectionize_uses_metadata_from_normalize_role(tmp_path: Path) -> Non
     assert manifest["sectionize_context_length"] == 20000
 
 
-def test_run_cerebras_sdk_profile_skips_http_health_probe(tmp_path: Path) -> None:
+def test_run_cerebras_profile_uses_litellm_adapter(tmp_path: Path) -> None:
     profile = load_profile(_write_cerebras_profile(tmp_path, api_key='"token"'))
     runner = PipelineRunner(profile)
 
@@ -291,21 +291,19 @@ def test_run_cerebras_sdk_profile_skips_http_health_probe(tmp_path: Path) -> Non
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.openai_http._probe_health",
-            side_effect=AssertionError("should not be called for cerebras_sdk"),
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.cerebras_sdk.CerebrasSDKBackendAdapter.create_chat_client",
-            return_value=_FakeChatClient(
-                CompletionResult(
-                    text="# API\n\nGET /v1/ping\n",
-                    prompt_tokens=50,
-                    completion_tokens=20,
-                    total_tokens=70,
-                    latency_s=0.5,
-                    requests=1,
-                    split_count=0,
-                )
+            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            return_value=CompletionResult(
+                text="# API\n\nGET /v1/ping\n",
+                prompt_tokens=50,
+                completion_tokens=20,
+                total_tokens=70,
+                latency_s=0.5,
+                requests=1,
+                split_count=0,
             ),
         ),
     ):

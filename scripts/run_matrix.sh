@@ -109,8 +109,8 @@ if [[ -n "$PRESET" ]]; then
 	case "$PRESET" in
 	fast-iterate)
 		PROFILES=(
-			profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml
-			profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai.example.yaml
+			profiles/local_attached/pipeline.profile.local_attached_litellm.example.yaml
+			profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_litellm.example.yaml
 		)
 		if [[ "$MAX_RUNS_SET" -eq 0 ]]; then
 			MAX_RUNS=6
@@ -121,9 +121,9 @@ if [[ -n "$PRESET" ]]; then
 		;;
 	quality-check)
 		PROFILES=(
-			profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml
-			profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai_highcap.example.yaml
-			profiles/remote/pipeline.profile.remote_openai.example.yaml
+			profiles/local_attached/pipeline.profile.local_attached_litellm.example.yaml
+			profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_litellm_highcap.example.yaml
+			profiles/remote/pipeline.profile.remote_openrouter.example.yaml
 		)
 		if [[ "$MAX_RUNS_SET" -eq 0 ]]; then
 			MAX_RUNS=12

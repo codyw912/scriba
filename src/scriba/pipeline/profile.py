@@ -21,24 +21,9 @@ DEFAULT_STAGE_ORDER: tuple[str, ...] = (
     "export",
 )
 
-SUPPORTED_ADAPTERS = {"openai_http", "cerebras_sdk"}
+SUPPORTED_ADAPTERS = {"litellm"}
 SUPPORTED_TOPOLOGIES = {"local_spawned", "local_attached", "remote"}
 SUPPORTED_MODEL_ORIGINS = {"local_weights", "hosted_weights", "unknown"}
-
-LEGACY_BACKEND_TYPE_ALIASES = {
-    "local_openai": {
-        "adapter": "openai_http",
-        "topology": "local_spawned",
-        "provider": "local",
-        "model_origin": "local_weights",
-    },
-    "external_openai": {
-        "adapter": "openai_http",
-        "topology": "remote",
-        "provider": "legacy_remote",
-        "model_origin": "unknown",
-    },
-}
 
 
 class ProfileError(ValueError):
@@ -193,12 +178,11 @@ def _parse_backends(raw: Any) -> dict[str, BackendConfig]:
         if not isinstance(backend_raw, dict):
             raise ProfileError(f"backend '{backend_name}' must be a mapping")
 
-        legacy_type = backend_raw.get("type")
         adapter = backend_raw.get("adapter")
         topology = backend_raw.get("topology")
         provider = backend_raw.get("provider")
         model_origin = backend_raw.get("model_origin", "unknown")
-        base_url_raw = backend_raw.get("base_url")
+        base_url_raw = backend_raw.get("base_url", "")
         base_url = (
             _expand_env_reference(base_url_raw)
             if isinstance(base_url_raw, str)
@@ -234,19 +218,6 @@ def _parse_backends(raw: Any) -> dict[str, BackendConfig]:
         health_payload = backend_raw.get("health_payload")
         env = backend_raw.get("env", {})
 
-        if (adapter is None or topology is None or provider is None) and isinstance(
-            legacy_type, str
-        ):
-            alias = LEGACY_BACKEND_TYPE_ALIASES.get(legacy_type)
-            if alias is not None:
-                adapter = alias["adapter"]
-                provider = str(provider or alias["provider"])
-                model_origin = str(model_origin or alias["model_origin"])
-                if legacy_type == "external_openai":
-                    topology = _infer_topology_from_base_url(base_url)
-                else:
-                    topology = alias["topology"]
-
         if adapter not in SUPPORTED_ADAPTERS:
             raise ProfileError(
                 f"backend '{backend_name}' has unsupported adapter '{adapter}'"
@@ -264,8 +235,12 @@ def _parse_backends(raw: Any) -> dict[str, BackendConfig]:
             raise ProfileError(
                 f"backend '{backend_name}' has unsupported model_origin '{model_origin}'"
             )
-        if not isinstance(base_url, str) or not base_url:
-            raise ProfileError(f"backend '{backend_name}' must define base_url")
+        if not isinstance(base_url, str):
+            raise ProfileError(f"backend '{backend_name}' base_url must be a string")
+        if topology in {"local_spawned", "local_attached"} and not base_url:
+            raise ProfileError(
+                f"backend '{backend_name}' must define base_url for topology '{topology}'"
+            )
         if not isinstance(inference_path, str) or not inference_path.startswith("/"):
             raise ProfileError(
                 f"backend '{backend_name}' inference_path must start with '/'"
@@ -458,14 +433,6 @@ def _optional_str(value: Any) -> str | None:
         stripped = value.strip()
         return stripped if stripped else None
     raise ProfileError("Expected string or null")
-
-
-def _infer_topology_from_base_url(base_url: Any) -> str:
-    if isinstance(base_url, str):
-        lower = base_url.lower()
-        if "127.0.0.1" in lower or "localhost" in lower:
-            return "local_attached"
-    return "remote"
 
 
 _ENV_REF_RE = re.compile(

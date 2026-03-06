@@ -8,6 +8,10 @@
 
 All scripts and docs now reference profile paths from this directory structure.
 
+## Adapter standard
+
+- Canonical adapter is `litellm` for remote/attached/spawned model calls.
+
 ## OCR role contract
 
 - `ocr_vision` is an optional role used by the `extract` stage for PDF OCR.
