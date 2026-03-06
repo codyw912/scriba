@@ -5,6 +5,7 @@ artifacts:
   run_id: auto
 
 backends:
+  # Default OCR anchor: local GLM-OCR service.
   ocr_backend:
     adapter: openai_http
     topology: local_spawned
@@ -29,6 +30,7 @@ backends:
     api_key: "${OPENROUTER_API_KEY}"
 
 roles:
+  # Swap OCR model/backend here if needed.
   ocr_vision:
     backend: ocr_backend
     model: glm-ocr
