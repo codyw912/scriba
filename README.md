@@ -1,263 +1,129 @@
 # scriba
 
-CLI-first, backend-agnostic document normalization pipeline and evaluation kit.
+CLI-first pipeline for turning PDFs (and other OCR-able inputs) into clean,
+accurate markdown.
 
-## Why this repo exists
+The primary goal is reliability in real document workflows: predictable runs,
+resumable artifacts, and profile-driven backend control.
 
-`scriba` is a clean-room split focused on local-file pipelines and model
-evaluation loops.
+## What it does
 
-- Keep: pipeline orchestration, profile-driven backends, resumable artifacts,
-  validation, and telemetry.
-- Drop (for now): web-service routes, URL rewriting, downloader/cache/image
-  serving product surfaces.
-
-## Scope (v0)
-
-- Local file pipeline commands (`run`, `status`, `doctor`)
-- Stage-oriented architecture and artifact state
-- Quick fixture benchmarking and telemetry tracking
-
-- Chunk sizing now supports model-aware defaults:
-  - when `sectionize.target_tokens` and `sectionize.overlap_tokens` are omitted,
-    values are inferred from model context metadata (explicit profile values still win)
-  - sectionize compacts adjacent small chunks to better amortize request overhead
-  - backend adapters provide model chunking hints (context length + sizing knobs);
-    first-class adapters should source this from provider APIs/catalogs when available
-
-## Non-goals (v0)
-
-- Public HTTP service
-- Hosted conversion API
-- Opinionated lock-in to one model provider/runtime
+- Runs a deterministic stage pipeline on local inputs:
+  - `extract -> clean -> sectionize -> normalize_map -> reduce -> validate -> export`
+- Supports local, remote, and hybrid model backends through YAML profiles.
+- Writes complete run artifacts under `artifacts/<run_id>/...` for auditing and resume.
+- Exposes simple CLI commands for run/status/doctor checks.
 
 ## Install
 
 ```bash
-uv sync --dev
+uv sync --group dev
 ```
 
-## Contributing
+## Quick start
 
-See `CONTRIBUTING.md` for branch strategy, PR expectations, and merge flow.
+Run on a sample markdown fixture:
+
+```bash
+uv run scriba run \
+  --profile profiles/pipeline.profile.example.yaml \
+  --input samples/docs/mini_api.md
+```
+
+Validate profile + input before running:
+
+```bash
+uv run scriba doctor \
+  --profile profiles/pipeline.profile.example.yaml \
+  --input samples/docs/mini_api.md
+```
+
+Inspect a run by ID:
+
+```bash
+uv run scriba status \
+  --profile profiles/pipeline.profile.example.yaml \
+  --run-id <run_id>
+```
 
 ## CLI
 
-```bash
-scriba run --profile profiles/pipeline.profile.example.yaml --input ./samples/file.pdf
-scriba status --profile profiles/pipeline.profile.example.yaml --run-id run-20260301-120000
-scriba doctor --profile profiles/pipeline.profile.example.yaml --input ./samples/file.pdf
-```
+- `scriba run --profile ... --input ... [--run-id ...] [--resume]`
+- `scriba status --profile ... --run-id ...`
+- `scriba doctor --profile ... --input ...`
 
-## Profile examples
+## Profiles
 
-- `profiles/pipeline.profile.example.yaml` (no backend roles; map stage passthrough)
-- `profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml` (local service already running, e.g. LM Studio)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai.example.yaml` (recommended local_spawned default; scriba starts llama.cpp with Unsloth Qwen3.5-27B Q4_K_M)
-- `profiles/local_spawned/pipeline.profile.local_spawned_openai.example.yaml` (alternative local_spawned runtime via mlx_lm.server)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai_highcap.example.yaml` (scriba starts llama.cpp higher-capacity Unsloth Qwen3.5-35B-A3B UD-Q4_K_XL)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_9b_bf16.example.yaml` (local_spawned Unsloth Qwen3.5-9B BF16 comparison)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_4b_bf16.example.yaml` (local_spawned Unsloth Qwen3.5-4B BF16 comparison)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_2b_bf16.example.yaml` (local_spawned Unsloth Qwen3.5-2B BF16 comparison)
-- `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_0p8b_bf16.example.yaml` (local_spawned Unsloth Qwen3.5-0.8B BF16 comparison)
-- `profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_35b_a3b_mxfp4.example.yaml` (local_attached LM Studio Qwen3.5-35B-A3B MLX MXFP4 comparison)
-- `profiles/remote/pipeline.profile.remote_openai.example.yaml` (remote text backend + local-attached OCR backend)
-- `profiles/hybrid/pipeline.profile.hybrid_local_spawned_ocr_remote_text.example.yaml` (local OCR backend + remote text normalization)
-- `profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml` (remote smaller-model comparison: Qwen2.5-7B)
-- `profiles/remote/pipeline.profile.remote_openai_llama31_8b.example.yaml` (remote smaller-model comparison: Llama 3.1 8B)
-- `profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml` (remote Qwen3.5 Flash comparison)
-- `profiles/remote/pipeline.profile.remote_openai_qwen3_next_80b_a3b.example.yaml` (remote Qwen3-Next-80B-A3B comparison)
-- `profiles/remote/pipeline.profile.remote_openai_qwen3_coder_next.example.yaml` (remote Qwen3-Coder-Next comparison)
-- `profiles/remote/pipeline.profile.remote_openai_gemini_2_5_flash.example.yaml` (production fast lane on OpenRouter)
-- `profiles/remote/pipeline.profile.remote_openai_claude_sonnet_4_5.example.yaml` (production fallback lane on OpenRouter)
-- `profiles/remote/pipeline.profile.remote_cerebras_sdk_llama31_8b.example.yaml` (Cerebras SDK profile: llama3.1-8b)
-- `profiles/remote/pipeline.profile.remote_cerebras_sdk_gpt_oss_120b.example.yaml` (Cerebras SDK profile: gpt-oss-120b)
-- `profiles/remote/pipeline.profile.remote_cerebras_sdk_qwen3_235b_a22b_instruct_2507.example.yaml` (Cerebras SDK profile: qwen-3-235b-a22b-instruct-2507)
-- `profiles/remote/pipeline.profile.remote_cerebras_sdk_zai_glm_4_7.example.yaml` (Cerebras SDK profile: zai-glm-4.7)
+Profile files live in `profiles/` and are organized by topology:
 
-| Profile | adapter | topology | provider | Typical use |
-|---|---|---|---|---|
-| `profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml` | `openai_http` | `local_attached` | `lmstudio` | Reuse an already-running local server |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Recommended local_spawned smoke/dev baseline |
-| `profiles/local_spawned/pipeline.profile.local_spawned_openai.example.yaml` | `openai_http` | `local_spawned` | `mlx_lm` | Alternative local_spawned runtime comparison |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai_highcap.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Higher-capacity local_spawned baseline (heavier hardware) |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_9b_bf16.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Local BF16 Qwen3.5-9B comparison profile |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_4b_bf16.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Local BF16 Qwen3.5-4B comparison profile |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_2b_bf16.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Local BF16 Qwen3.5-2B comparison profile |
-| `profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_0p8b_bf16.example.yaml` | `openai_http` | `local_spawned` | `llama_cpp` | Local BF16 Qwen3.5-0.8B comparison profile |
-| `profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_35b_a3b_mxfp4.example.yaml` | `openai_http` | `local_attached` | `lmstudio` | Local LM Studio MXFP4 Qwen3.5-35B-A3B profile |
-| `profiles/remote/pipeline.profile.remote_openai.example.yaml` | `openai_http` | `remote` | `openrouter` | Use hosted text inference over network (with local OCR role available) |
-| `profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml` | `openai_http` | `remote` | `openrouter` | Smaller hosted comparison profile (Qwen2.5-7B) |
-| `profiles/remote/pipeline.profile.remote_openai_llama31_8b.example.yaml` | `openai_http` | `remote` | `openrouter` | Smaller hosted comparison profile (Llama 3.1 8B) |
-| `profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml` | `openai_http` | `remote` | `openrouter` | Qwen3.5 Flash hosted comparison profile |
-| `profiles/remote/pipeline.profile.remote_openai_qwen3_next_80b_a3b.example.yaml` | `openai_http` | `remote` | `openrouter` | Qwen3-Next-80B-A3B hosted comparison profile |
-| `profiles/remote/pipeline.profile.remote_openai_qwen3_coder_next.example.yaml` | `openai_http` | `remote` | `openrouter` | Qwen3-Coder-Next hosted comparison profile |
-| `profiles/remote/pipeline.profile.remote_openai_gemini_2_5_flash.example.yaml` | `openai_http` | `remote` | `openrouter` | Production fast lane |
-| `profiles/remote/pipeline.profile.remote_openai_claude_sonnet_4_5.example.yaml` | `openai_http` | `remote` | `openrouter` | Production fallback lane |
-| `profiles/remote/pipeline.profile.remote_cerebras_sdk_llama31_8b.example.yaml` | `cerebras_sdk` | `remote` | `cerebras` | Cerebras-hosted Llama 3.1 8B |
-| `profiles/remote/pipeline.profile.remote_cerebras_sdk_gpt_oss_120b.example.yaml` | `cerebras_sdk` | `remote` | `cerebras` | Cerebras-hosted GPT-OSS 120B |
-| `profiles/remote/pipeline.profile.remote_cerebras_sdk_qwen3_235b_a22b_instruct_2507.example.yaml` | `cerebras_sdk` | `remote` | `cerebras` | Cerebras-hosted Qwen 3 235B A22B |
-| `profiles/remote/pipeline.profile.remote_cerebras_sdk_zai_glm_4_7.example.yaml` | `cerebras_sdk` | `remote` | `cerebras` | Cerebras-hosted Z.ai GLM 4.7 |
+- `profiles/pipeline.profile.example.yaml` - minimal baseline
+- `profiles/local_spawned/` - scriba launches backend process
+- `profiles/local_attached/` - connect to an already-running local backend
+- `profiles/remote/` - hosted provider profiles
+- `profiles/hybrid/` - mixed local/remote profile patterns
 
-`llama_cpp` Unsloth notes:
+See `profiles/README.md` for layout details.
 
-- these profiles point `--model` to local Hugging Face cache GGUF paths
-- if your snapshot hash/path differs, update the profile `command` model path
-- expected memory footprint from Unsloth guidance:
-  - Qwen3.5-27B Q4: around 17 GB total memory
-  - Qwen3.5-35B-A3B 4-bit: around 22 GB total memory
+## OCR behavior (explicit)
 
-## Backend topology
+For PDF inputs, extraction follows this order:
 
-Backend configuration uses explicit axes so naming stays unambiguous:
+1. If a profile defines an `ocr_vision` role, `scriba` calls that vision model for OCR extraction.
+2. If no `ocr_vision` role exists (or OCR vision extraction fails), `scriba` falls back to local `pymupdf4llm` extraction.
 
-- `adapter`: transport/integration method (`openai_http`, `cerebras_sdk`)
-- `topology`:
-  - `local_spawned`: scriba starts and stops the backend process
-  - `local_attached`: backend already running locally (localhost/127.0.0.1)
-  - `remote`: backend hosted elsewhere over network
-- `provider`: runtime/vendor label (`mlx_lm`, `lmstudio`, `openrouter`, `openai`, etc.)
-- `model_origin`: `local_weights`, `hosted_weights`, or `unknown`
+Current hosted/hybrid examples are intentionally anchored to **GLM-OCR** as the
+default OCR model (`provider: glm_ocr`, `model: glm-ocr`).
 
-This means a local model served by LM Studio is clearly represented as
-`topology=local_attached` + `provider=lmstudio`, not remote.
+You can switch OCR models/backends by editing profile config:
 
-Legacy compatibility: older backend `type` values (`local_openai`,
-`external_openai`) are still parsed and mapped to canonical axes.
+- `backends.ocr_backend` (adapter/topology/base_url/auth)
+- `roles.ocr_vision.model` (OCR model id)
 
-`cerebras_sdk` notes:
+For this initial public push, GLM-OCR is the recommended default path.
 
-- requires Python package `cerebras-cloud-sdk`
-- set `CEREBRAS_API_KEY` (for example in `.env`) for remote Cerebras profiles
-- optional: set `SCRIBA_CEREBRAS_TIER=paygo` to use paygo context defaults
-  (otherwise `free`-tier context defaults are used)
+## Environment
 
-Map-stage worker/backoff controls:
+Copy `.env.example` to `.env` and set credentials as needed:
 
-- `stages.normalize_map.workers` controls shared worker count (default `1`)
-- `SCRIBA_MAP_RATE_LIMIT_RETRIES` controls shared per-chunk retries after
-  rate-limit responses (default `2`)
-- tqdm progress bar for `normalize_map` appears on TTY stderr;
-  disable with `SCRIBA_PROGRESS=0`
+- `OPENROUTER_API_KEY`
+- `CEREBRAS_API_KEY`
 
-Role routing is independent from topology:
+Useful runtime controls:
 
-- `normalize_text` drives map-stage normalization
-- `reduce_text` defaults to `normalize_text` unless explicitly overridden
-- `ocr_vision` is reserved for OCR-specific model routing
+- `SCRIBA_PROGRESS=0` disables tqdm map-stage progress bar
+- `SCRIBA_MAP_RATE_LIMIT_RETRIES=<int>` sets per-chunk retry budget for rate-limit events
+- `SCRIBA_CEREBRAS_TIER=paygo` switches Cerebras metadata assumptions to paygo tier
+- `SCRIBA_BACKEND_PASSTHROUGH_LOGS=1` shows spawned backend stdout/stderr
 
-Current runtime routing uses `normalize_text` for map-stage model calls; the
-`reduce_text` fallback contract and `ocr_vision` role are now part of the
-profile contract for upcoming OCR/reduce model routing updates.
+## Reliability notes
 
-Reasoning control (for OpenRouter-compatible models) can be configured per stage:
+- Use explicit `--run-id` for long jobs so reruns can safely `--resume`.
+- Review run artifacts in `artifacts/<run_id>/` (map telemetry, validation report, final markdown).
+- Keep profile config as the source of truth for backend behavior (timeouts, workers, output limits).
 
-- `stages.normalize_map.reasoning_effort` (example: `none`)
-- `stages.normalize_map.reasoning_exclude` (example: `true`)
+## Large-document preflight
 
-## Quick evaluation
+Estimate token budget locally from cleaned markdown before expensive remote runs:
 
 ```bash
-bash scripts/quick_eval.sh --doctor-only
-bash scripts/quick_eval.sh
-bash scripts/update_quick_eval.sh
-```
-
-Outputs:
-
-- `samples/quick_runs.md`
-- `samples/quick_telemetry.md`
-- `docs/backend_decision_matrix.md` (history section auto-updated)
-
-## Matrix runs
-
-```bash
-bash scripts/run_matrix.sh --doctor-only
-bash scripts/run_matrix.sh --profile profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml
-bash scripts/run_matrix.sh --campaign-id one-model --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_9b_bf16.example.yaml
-bash scripts/run_matrix.sh --campaign-id qwen35-smalls --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_4b_bf16.example.yaml --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_2b_bf16.example.yaml --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_0p8b_bf16.example.yaml --max-runs 9
-bash scripts/run_matrix.sh --campaign-id qwen35-backend-compare --profile profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_9b_bf16.example.yaml --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_9b_bf16.example.yaml --profile profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_4b_bf16.example.yaml --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_4b_bf16.example.yaml --profile profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_35b_a3b_mxfp4.example.yaml --profile profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai_highcap.example.yaml --max-runs 18
-bash scripts/run_matrix.sh --preset fast-iterate --reset-log
-scripts/render_matrix_report.py --json-output samples/matrix_report.json
-```
-
-Start a fresh matrix campaign log:
-
-```bash
-bash scripts/run_matrix.sh --reset-log --doctor-only
-```
-
-Remote profile smoke run (OpenRouter example):
-
-```bash
-# Add your key to `.env` (see `.env.example`) or export it in-shell.
-bash scripts/run_matrix.sh --reset-log --profile profiles/remote/pipeline.profile.remote_openai.example.yaml --max-runs 1
-scripts/render_matrix_report.py
-```
-
-Production-style two-lane run (fast + stronger fallback):
-
-```bash
-bash scripts/run_matrix.sh --reset-log --campaign-id hosted-production-lanes \
-  --profile profiles/remote/pipeline.profile.remote_openai_gemini_2_5_flash.example.yaml \
-  --profile profiles/remote/pipeline.profile.remote_openai_claude_sonnet_4_5.example.yaml \
-  --max-runs 12
-scripts/render_matrix_report.py
-```
-
-Cerebras direct-model quick run (SDK adapter):
-
-```bash
-# Add your key to `.env` (see `.env.example`) or export it in-shell.
-bash scripts/quick_cerebras_bench.sh --campaign-id cerebras-direct-v1 --max-runs 12
-```
-
-Check Cerebras model access for your API key before running full campaigns:
-
-```bash
-uv run --env-file .env scripts/check_cerebras_model_access.py
-```
-
-Estimate large-run token budget locally (no model API calls):
-
-```bash
-# Run local extraction/clean first, then estimate budget from cleaned markdown.
 uv run scripts/estimate_token_budget.py \
-  --markdown artifacts/preflight-local/raw/cleaned.md \
+  --markdown artifacts/<preflight_run_id>/raw/cleaned.md \
   --model gpt-oss-120b
 ```
 
-Guardrails in `scripts/run_matrix.sh` defaults:
+## Optional: model selection and benchmarking
 
-- max pipeline runs: `6` (`--max-runs`)
-- max sample size: `1500000` bytes (`--max-file-bytes`)
-- stop profile after doctor failure (override with `--continue-on-doctor-fail`)
-- optional clean campaign start: `--reset-log`
+Benchmarking exists to improve backend/model choices for the pipeline; it is not
+required for normal usage.
 
-Presets for reproducible campaigns:
+- Sample benchmark command index: `samples/README.md`
+- Benchmark schema: `docs/benchmark_schema.md`
+- Quality framework: `docs/quality_evaluation_framework.md`
+- Synthetic benchmark spec: `docs/benchmark_spec_v1.md`
 
-- `--preset fast-iterate`
-  - profiles: `local_attached_openai` + recommended `local_spawned_llama_cpp_openai`
-  - tuned for small-fixture iteration loops
-- `--preset quality-check`
-  - profiles: `local_attached_openai` + `local_spawned_llama_cpp_openai_highcap` + `remote_openai`
-  - broader quality/sanity comparison pass
+## Contributing
 
-Campaign grouping/trends:
-
-- each row in `samples/matrix_runs.jsonl` now includes `campaign_id` and `preset`
-- `scripts/render_matrix_report.py` renders:
-  - `Campaign Summary` (campaign-level rollups)
-  - `Campaign Trend (Latest vs Previous)` with per-profile throughput deltas
-  - quality metrics (`avg_quality`, quality ranking, per-run recall signals)
-
-Outputs:
-
-- `samples/matrix_runs.jsonl`
-- `samples/matrix_report.md`
-- `samples/matrix_report.json` (optional, with `--json-output`)
-- schema reference: `docs/benchmark_schema.md`
-- quality framework: `docs/quality_evaluation_framework.md`
+See `CONTRIBUTING.md` for branch strategy, PR flow, and merge expectations.
 
 ## License
 
