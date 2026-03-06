@@ -6,11 +6,10 @@ artifacts:
 
 backends:
   remote_text:
-    adapter: openai_http
+    adapter: litellm
     topology: remote
     provider: openrouter
     model_origin: hosted_weights
-    base_url: https://openrouter.ai/api
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30

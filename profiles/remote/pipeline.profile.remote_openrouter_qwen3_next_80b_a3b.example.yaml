@@ -6,11 +6,10 @@ artifacts:
 
 backends:
   remote_text:
-    adapter: openai_http
+    adapter: litellm
     topology: remote
     provider: openrouter
     model_origin: hosted_weights
-    base_url: https://openrouter.ai/api
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30
@@ -19,7 +18,7 @@ backends:
 roles:
   normalize_text:
     backend: remote_text
-    model: qwen/qwen-2.5-7b-instruct
+    model: qwen/qwen3-next-80b-a3b-instruct
 
 stages:
   extract:

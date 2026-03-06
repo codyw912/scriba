@@ -56,10 +56,10 @@ if [[ -z "${CEREBRAS_API_KEY:-}" ]]; then
 fi
 
 PROFILES=(
-	profiles/remote/pipeline.profile.remote_cerebras_sdk_zai_glm_4_7.example.yaml
-	profiles/remote/pipeline.profile.remote_cerebras_sdk_gpt_oss_120b.example.yaml
-	profiles/remote/pipeline.profile.remote_cerebras_sdk_qwen3_235b_a22b_instruct_2507.example.yaml
-	profiles/remote/pipeline.profile.remote_cerebras_sdk_llama31_8b.example.yaml
+	profiles/remote/pipeline.profile.remote_cerebras_zai_glm_4_7.example.yaml
+	profiles/remote/pipeline.profile.remote_cerebras_gpt_oss_120b.example.yaml
+	profiles/remote/pipeline.profile.remote_cerebras_qwen3_235b_a22b_instruct_2507.example.yaml
+	profiles/remote/pipeline.profile.remote_cerebras_llama31_8b.example.yaml
 )
 
 CMD=(bash scripts/run_matrix.sh --reset-log --campaign-id "$CAMPAIGN_ID" --max-runs "$MAX_RUNS")

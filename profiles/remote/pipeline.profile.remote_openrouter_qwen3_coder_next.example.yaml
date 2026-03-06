@@ -5,22 +5,20 @@ artifacts:
   run_id: auto
 
 backends:
-  local_text:
-    adapter: openai_http
-    topology: local_spawned
-    provider: mlx_lm
-    model_origin: local_weights
-    base_url: http://127.0.0.1:8101
+  remote_text:
+    adapter: litellm
+    topology: remote
+    provider: openrouter
+    model_origin: hosted_weights
     inference_path: /v1/chat/completions
     health_path: /v1/models
-    startup_timeout_s: 300
-    command: mlx_lm.server --host 127.0.0.1 --port 8101 --model RepublicOfKorokke/Qwen3.5-35B-A3B-mlx-lm-mxfp4
-    api_key: ""
+    startup_timeout_s: 30
+    api_key: "${OPENROUTER_API_KEY}"
 
 roles:
   normalize_text:
-    backend: local_text
-    model: RepublicOfKorokke/Qwen3.5-35B-A3B-mlx-lm-mxfp4
+    backend: remote_text
+    model: qwen/qwen3-coder-next
 
 stages:
   extract:
@@ -29,13 +27,13 @@ stages:
     enabled: true
   sectionize:
     enabled: true
-    target_tokens: 3500
-    overlap_tokens: 300
   normalize_map:
     enabled: true
     temperature: 0.0
-    request_timeout_s: 1200
+    request_timeout_s: 900
     max_output_tokens: 1024
+    reasoning_effort: none
+    reasoning_exclude: true
   reduce:
     enabled: true
   validate:

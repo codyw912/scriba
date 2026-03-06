@@ -94,7 +94,7 @@ def _endpoint(
         inference_url="http://127.0.0.1:8090/v1/chat/completions",
         model="qwen/qwen3.5-35b-a3b",
         api_key="",
-        adapter="openai_http",
+        adapter="litellm",
         topology="remote",
         provider=provider,
         context_length=context_length,

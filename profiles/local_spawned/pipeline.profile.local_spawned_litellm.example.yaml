@@ -5,21 +5,22 @@ artifacts:
   run_id: auto
 
 backends:
-  text_backend:
-    adapter: openai_http
-    topology: local_attached
-    provider: lmstudio
+  local_text:
+    adapter: litellm
+    topology: local_spawned
+    provider: mlx_lm
     model_origin: local_weights
-    base_url: http://127.0.0.1:8090
+    base_url: http://127.0.0.1:8091
     inference_path: /v1/chat/completions
     health_path: /v1/models
-    startup_timeout_s: 30
+    startup_timeout_s: 180
+    command: mlx_lm.server --host 127.0.0.1 --port 8091 --model mlx-community/Qwen2.5-14B-Instruct-8bit
     api_key: ""
 
 roles:
   normalize_text:
-    backend: text_backend
-    model: qwen3.5-9b
+    backend: local_text
+    model: mlx-community/Qwen2.5-14B-Instruct-8bit
 
 stages:
   extract:
@@ -33,8 +34,7 @@ stages:
   normalize_map:
     enabled: true
     temperature: 0.0
-    request_timeout_s: 900
-    max_output_tokens: 1024
+    request_timeout_s: 1200
   reduce:
     enabled: true
   validate:

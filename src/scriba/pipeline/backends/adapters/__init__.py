@@ -1,17 +1,13 @@
 """Backend adapter implementations."""
 
-from scriba.pipeline.backends.adapters.cerebras_sdk import (
-    CerebrasSDKBackendAdapter,
-)
-from scriba.pipeline.backends.adapters.openai_http import (
-    AttachedOrRemoteOpenAIBackendAdapter,
-    LocalProcessOpenAIBackendAdapter,
-)
 from scriba.pipeline.backends.adapters.base import BackendAdapter
+from scriba.pipeline.backends.adapters.litellm_adapter import (
+    AttachedOrRemoteLiteLLMBackendAdapter,
+    LocalProcessLiteLLMBackendAdapter,
+)
 
 __all__ = [
-    "AttachedOrRemoteOpenAIBackendAdapter",
+    "AttachedOrRemoteLiteLLMBackendAdapter",
     "BackendAdapter",
-    "CerebrasSDKBackendAdapter",
-    "LocalProcessOpenAIBackendAdapter",
+    "LocalProcessLiteLLMBackendAdapter",
 ]

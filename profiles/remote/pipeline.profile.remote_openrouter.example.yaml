@@ -5,21 +5,36 @@ artifacts:
   run_id: auto
 
 backends:
+  # Default OCR anchor for hosted text runs: local GLM-OCR service.
+  ocr_backend:
+    adapter: litellm
+    topology: local_attached
+    provider: glm_ocr
+    model_origin: local_weights
+    base_url: http://127.0.0.1:8092
+    inference_path: /v1/chat/completions
+    health_path: /v1/models
+    startup_timeout_s: 30
+    api_key: ""
+
   remote_text:
-    adapter: openai_http
+    adapter: litellm
     topology: remote
     provider: openrouter
     model_origin: hosted_weights
-    base_url: https://openrouter.ai/api
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30
     api_key: "${OPENROUTER_API_KEY}"
 
 roles:
+  # OCR model can be swapped by editing this role + backend above.
+  ocr_vision:
+    backend: ocr_backend
+    model: glm-ocr
   normalize_text:
     backend: remote_text
-    model: meta-llama/llama-3.1-8b-instruct
+    model: qwen/qwen3.5-35b-a3b
 
 stages:
   extract:

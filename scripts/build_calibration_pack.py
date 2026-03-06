@@ -18,7 +18,7 @@ from typing import Any
 
 DEFAULT_TRADEOFFS = "samples/model_selection/model_tradeoffs.json"
 DEFAULT_TEMPLATE_PROFILE = (
-    "profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml"
+    "profiles/remote/pipeline.profile.remote_openrouter_qwen25_7b.example.yaml"
 )
 DEFAULT_OUTPUT_DIR = "samples/model_selection/calibration"
 
@@ -242,7 +242,7 @@ def main() -> int:
         model_id = entry["model_id"]
         bucket_name = entry["bucket"]
         slug = _slugify_model_id(model_id)
-        profile_name = f"pipeline.profile.remote_openai.calib.{idx:02d}.{slug}.yaml"
+        profile_name = f"pipeline.profile.remote_openrouter.calib.{idx:02d}.{slug}.yaml"
         profile_path = profiles_dir / profile_name
         profile_text = _replace_normalize_model(template_text, model_id)
         if not args.keep_reasoning_fields:

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from scriba.pipeline.backends.adapters import (
-    AttachedOrRemoteOpenAIBackendAdapter,
+    AttachedOrRemoteLiteLLMBackendAdapter,
     BackendAdapter,
-    CerebrasSDKBackendAdapter,
-    LocalProcessOpenAIBackendAdapter,
+    LocalProcessLiteLLMBackendAdapter,
 )
 from scriba.pipeline.backends.errors import BackendError
 from scriba.pipeline.backends.types import ChunkingHints, ModelEndpoint, ModelSession
@@ -81,24 +80,16 @@ class ModelManager:
             raise BackendError(f"Backend '{backend_name}' is not defined")
 
         config = self.profile.backends[backend_name]
-        if config.adapter == "openai_http" and config.topology == "local_spawned":
-            adapter: BackendAdapter = LocalProcessOpenAIBackendAdapter(
+        if config.adapter == "litellm" and config.topology == "local_spawned":
+            adapter: BackendAdapter = LocalProcessLiteLLMBackendAdapter(
                 name=backend_name,
                 config=config,
             )
-        elif config.adapter == "openai_http" and config.topology in {
+        elif config.adapter == "litellm" and config.topology in {
             "local_attached",
             "remote",
         }:
-            adapter = AttachedOrRemoteOpenAIBackendAdapter(
-                name=backend_name,
-                config=config,
-            )
-        elif config.adapter == "cerebras_sdk" and config.topology in {
-            "local_attached",
-            "remote",
-        }:
-            adapter = CerebrasSDKBackendAdapter(
+            adapter = AttachedOrRemoteLiteLLMBackendAdapter(
                 name=backend_name,
                 config=config,
             )

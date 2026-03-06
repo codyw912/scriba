@@ -5,21 +5,20 @@ artifacts:
   run_id: auto
 
 backends:
-  text_backend:
-    adapter: openai_http
-    topology: local_attached
-    provider: lmstudio
-    model_origin: local_weights
-    base_url: http://127.0.0.1:8090
+  remote_text:
+    adapter: litellm
+    topology: remote
+    provider: openrouter
+    model_origin: hosted_weights
     inference_path: /v1/chat/completions
     health_path: /v1/models
     startup_timeout_s: 30
-    api_key: ""
+    api_key: "${OPENROUTER_API_KEY}"
 
 roles:
   normalize_text:
-    backend: text_backend
-    model: qwen/qwen3.5-35b-a3b
+    backend: remote_text
+    model: qwen/qwen-2.5-7b-instruct
 
 stages:
   extract:
@@ -28,13 +27,13 @@ stages:
     enabled: true
   sectionize:
     enabled: true
-    target_tokens: 4000
-    overlap_tokens: 300
   normalize_map:
     enabled: true
     temperature: 0.0
     request_timeout_s: 900
-    max_output_tokens: 2048
+    max_output_tokens: 1024
+    reasoning_effort: none
+    reasoning_exclude: true
   reduce:
     enabled: true
   validate:

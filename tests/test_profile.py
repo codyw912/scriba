@@ -47,13 +47,13 @@ def test_example_profiles_parse() -> None:
     example_paths = [
         repo_root / "profiles/pipeline.profile.example.yaml",
         repo_root
-        / "profiles/local_attached/pipeline.profile.local_attached_openai.example.yaml",
+        / "profiles/local_attached/pipeline.profile.local_attached_litellm.example.yaml",
         repo_root
-        / "profiles/local_spawned/pipeline.profile.local_spawned_openai.example.yaml",
+        / "profiles/local_spawned/pipeline.profile.local_spawned_litellm.example.yaml",
         repo_root
-        / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai.example.yaml",
+        / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_litellm.example.yaml",
         repo_root
-        / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_openai_highcap.example.yaml",
+        / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_litellm_highcap.example.yaml",
         repo_root
         / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_9b_bf16.example.yaml",
         repo_root
@@ -67,42 +67,42 @@ def test_example_profiles_parse() -> None:
         repo_root
         / "profiles/local_spawned/pipeline.profile.local_spawned_llama_cpp_qwen35_4b_bf16_fast.example.yaml",
         repo_root
-        / "profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_9b_bf16.example.yaml",
+        / "profiles/local_attached/pipeline.profile.local_attached_litellm_qwen35_9b_bf16.example.yaml",
         repo_root
-        / "profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_4b_bf16.example.yaml",
+        / "profiles/local_attached/pipeline.profile.local_attached_litellm_qwen35_4b_bf16.example.yaml",
         repo_root
-        / "profiles/local_attached/pipeline.profile.local_attached_openai_qwen35_35b_a3b_mxfp4.example.yaml",
+        / "profiles/local_attached/pipeline.profile.local_attached_litellm_qwen35_35b_a3b_mxfp4.example.yaml",
         repo_root
-        / "profiles/local_spawned/pipeline.profile.local_spawned_openai_qwen35_35b_a3b_mxfp4.example.yaml",
-        repo_root / "profiles/remote/pipeline.profile.remote_openai.example.yaml",
+        / "profiles/local_spawned/pipeline.profile.local_spawned_litellm_qwen35_35b_a3b_mxfp4.example.yaml",
+        repo_root / "profiles/remote/pipeline.profile.remote_openrouter.example.yaml",
         repo_root
         / "profiles/hybrid/pipeline.profile.hybrid_local_spawned_ocr_remote_text.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_qwen25_7b.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_llama31_8b.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_llama31_8b.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_qwen35_flash.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_qwen3_next_80b_a3b.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_qwen3_next_80b_a3b.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_qwen3_coder_next.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_qwen3_coder_next.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_mistral_nemo.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_mistral_nemo.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_gpt4o_mini.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_gpt4o_mini.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_gemini_2_5_flash.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_gemini_2_5_flash.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_openai_claude_sonnet_4_5.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_openrouter_claude_sonnet_4_5.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_cerebras_sdk_llama31_8b.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_cerebras_llama31_8b.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_cerebras_sdk_gpt_oss_120b.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_cerebras_gpt_oss_120b.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_cerebras_sdk_qwen3_235b_a22b_instruct_2507.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_cerebras_qwen3_235b_a22b_instruct_2507.example.yaml",
         repo_root
-        / "profiles/remote/pipeline.profile.remote_cerebras_sdk_zai_glm_4_7.example.yaml",
+        / "profiles/remote/pipeline.profile.remote_cerebras_zai_glm_4_7.example.yaml",
     ]
 
     for path in example_paths:
@@ -118,7 +118,7 @@ def test_profile_parses_canonical_backend_axes(tmp_path: Path) -> None:
                 "version: 1",
                 "backends:",
                 "  text_backend:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: local_attached",
                 "    provider: lmstudio",
                 "    model_origin: local_weights",
@@ -135,13 +135,13 @@ def test_profile_parses_canonical_backend_axes(tmp_path: Path) -> None:
 
     profile = load_profile(profile_path)
     backend = profile.backends["text_backend"]
-    assert backend.adapter == "openai_http"
+    assert backend.adapter == "litellm"
     assert backend.topology == "local_attached"
     assert backend.provider == "lmstudio"
     assert backend.model_origin == "local_weights"
 
 
-def test_profile_parses_cerebras_sdk_backend(tmp_path: Path) -> None:
+def test_profile_parses_litellm_cerebras_backend(tmp_path: Path) -> None:
     profile_path = tmp_path / "profile.yaml"
     profile_path.write_text(
         "\n".join(
@@ -149,7 +149,7 @@ def test_profile_parses_cerebras_sdk_backend(tmp_path: Path) -> None:
                 "version: 1",
                 "backends:",
                 "  text_backend:",
-                "    adapter: cerebras_sdk",
+                "    adapter: litellm",
                 "    topology: remote",
                 "    provider: cerebras",
                 "    model_origin: hosted_weights",
@@ -166,11 +166,42 @@ def test_profile_parses_cerebras_sdk_backend(tmp_path: Path) -> None:
 
     profile = load_profile(profile_path)
     backend = profile.backends["text_backend"]
-    assert backend.adapter == "cerebras_sdk"
+    assert backend.adapter == "litellm"
     assert backend.provider == "cerebras"
 
 
-def test_profile_legacy_type_aliases_still_parse(tmp_path: Path) -> None:
+def test_profile_rejects_removed_legacy_adapter_values(tmp_path: Path) -> None:
+    profile_path = tmp_path / "profile.yaml"
+    profile_path.write_text(
+        "\n".join(
+            [
+                "version: 1",
+                "backends:",
+                "  openai_like:",
+                "    adapter: openai_http",
+                "    topology: remote",
+                "    provider: openrouter",
+                "    base_url: https://openrouter.ai/api/v1",
+                "  cerebras_like:",
+                "    adapter: cerebras_sdk",
+                "    topology: remote",
+                "    provider: cerebras",
+                "    base_url: https://api.cerebras.ai/v1",
+                "roles:",
+                "  normalize_text:",
+                "    backend: openai_like",
+                "    model: qwen/qwen3.5-35b-a3b",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProfileError, match="unsupported adapter"):
+        load_profile(profile_path)
+
+
+def test_profile_rejects_removed_legacy_backend_type_aliases(tmp_path: Path) -> None:
     profile_path = tmp_path / "profile.yaml"
     profile_path.write_text(
         "\n".join(
@@ -197,10 +228,8 @@ def test_profile_legacy_type_aliases_still_parse(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    profile = load_profile(profile_path)
-    assert profile.backends["local_backend"].topology == "local_spawned"
-    assert profile.backends["attached_backend"].topology == "local_attached"
-    assert profile.backends["remote_backend"].topology == "remote"
+    with pytest.raises(ProfileError, match="unsupported adapter"):
+        load_profile(profile_path)
 
 
 def test_profile_role_resolution_defaults_reduce_to_normalize(tmp_path: Path) -> None:
@@ -211,7 +240,7 @@ def test_profile_role_resolution_defaults_reduce_to_normalize(tmp_path: Path) ->
                 "version: 1",
                 "backends:",
                 "  text_backend:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: local_attached",
                 "    provider: lmstudio",
                 "    base_url: http://127.0.0.1:8090",
@@ -246,7 +275,7 @@ def test_profile_expands_env_api_key(
                 "version: 1",
                 "backends:",
                 "  remote_backend:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: remote",
                 "    provider: openrouter",
                 "    model_origin: hosted_weights",
@@ -282,7 +311,7 @@ def test_profile_expands_env_for_artifacts_and_role_model(
                 "  run_id: test-run",
                 "backends:",
                 "  remote_backend:",
-                "    adapter: openai_http",
+                "    adapter: litellm",
                 "    topology: remote",
                 "    provider: openrouter",
                 "    model_origin: hosted_weights",

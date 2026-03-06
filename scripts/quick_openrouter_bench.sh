@@ -62,16 +62,16 @@ if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
 fi
 
 PROFILES=(
-	profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml
-	profiles/remote/pipeline.profile.remote_openai_qwen35_flash.example.yaml
-	profiles/remote/pipeline.profile.remote_openai_qwen3_coder_next.example.yaml
-	profiles/remote/pipeline.profile.remote_openai_llama31_8b.example.yaml
-	profiles/remote/pipeline.profile.remote_openai_mistral_nemo.example.yaml
-	profiles/remote/pipeline.profile.remote_openai_gpt4o_mini.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_qwen25_7b.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_qwen35_flash.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_qwen3_coder_next.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_llama31_8b.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_mistral_nemo.example.yaml
+	profiles/remote/pipeline.profile.remote_openrouter_gpt4o_mini.example.yaml
 )
 
 if [[ "$INCLUDE_BASELINE" -eq 1 ]]; then
-	PROFILES+=(profiles/remote/pipeline.profile.remote_openai.example.yaml)
+	PROFILES+=(profiles/remote/pipeline.profile.remote_openrouter.example.yaml)
 fi
 
 CMD=(bash scripts/run_matrix.sh --reset-log --campaign-id "$CAMPAIGN_ID" --max-runs "$MAX_RUNS")
