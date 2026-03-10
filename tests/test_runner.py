@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from scriba.pipeline import PipelineError, PipelineRunner, load_profile
-from scriba.pipeline.backends import CompletionResult
+from scribai.pipeline import PipelineError, PipelineRunner, load_profile
+from scribai.pipeline.backends import CompletionResult
 
 
 class _FakeChatClient:
@@ -218,11 +218,11 @@ def test_run_remote_profile_with_mocked_health_and_completion(tmp_path: Path) ->
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            "scribai.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nGET /v1/ping\n",
                 prompt_tokens=100,
@@ -256,15 +256,15 @@ def test_run_sectionize_uses_metadata_from_normalize_role(tmp_path: Path) -> Non
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
+            "scribai.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
             return_value=20000,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            "scribai.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nGET /v1/ping\n",
                 prompt_tokens=80,
@@ -300,11 +300,11 @@ def test_run_cerebras_profile_uses_litellm_adapter(tmp_path: Path) -> None:
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            "scribai.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nGET /v1/ping\n",
                 prompt_tokens=50,
@@ -342,11 +342,11 @@ def test_run_marks_completed_with_validation_errors_when_validation_finds_hard_e
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            "scribai.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nNo endpoint preserved here.\n",
                 prompt_tokens=50,
@@ -391,11 +391,11 @@ def test_run_marks_failed_runtime_when_strict_validation_raises(
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            "scribai.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
             return_value=CompletionResult(
                 text="# API\n\nNo endpoint preserved here.\n",
                 prompt_tokens=50,

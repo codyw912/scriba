@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from scriba.pipeline import PipelineProfile, load_profile
+from scribai.pipeline import PipelineProfile, load_profile
 
 
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
@@ -180,7 +180,7 @@ def _load_models_payload(
         models_url,
         headers={
             "Accept": "application/json",
-            "User-Agent": "scriba-hosted-pareto/1.0",
+            "User-Agent": "scribai-hosted-pareto/1.0",
         },
     )
     try:

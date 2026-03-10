@@ -185,7 +185,7 @@ RUN_COUNT=0
 resolve_run_status() {
 	local profile="$1"
 	local run_id="$2"
-	uv run scriba status --profile "$profile" --run-id "$run_id" 2>/dev/null |
+	uv run scribai status --profile "$profile" --run-id "$run_id" 2>/dev/null |
 		uv run python -c 'import json,sys; print(str(json.load(sys.stdin).get("status", "failed_runtime")))' 2>/dev/null
 }
 
@@ -208,7 +208,7 @@ for profile in "${PROFILES[@]}"; do
 		fi
 
 		echo "Doctor: profile=$profile input=$input"
-		if ! uv run scriba doctor --profile "$profile" --input "$input"; then
+		if ! uv run scribai doctor --profile "$profile" --input "$input"; then
 			now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 			printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","status":"doctor_failed"}\n' \
 				"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" >>"$OUTPUT_JSONL"
@@ -245,7 +245,7 @@ for profile in "${PROFILES[@]}"; do
 
 		echo "Run: profile=$profile input=$input run_id=$run_id"
 		status="failed_runtime"
-		if uv run scriba run --profile "$profile" --input "$input" --run-id "$run_id"; then
+		if uv run scribai run --profile "$profile" --input "$input" --run-id "$run_id"; then
 			resolved_status="$(resolve_run_status "$profile" "$run_id")"
 			if [[ -n "$resolved_status" ]]; then
 				status="$resolved_status"

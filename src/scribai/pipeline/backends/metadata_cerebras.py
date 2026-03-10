@@ -73,7 +73,7 @@ def lookup_max_output_tokens_from_cerebras(*, model: str, provider: str) -> int 
 
 
 def _resolved_cerebras_tier() -> str:
-    raw = os.getenv("SCRIBA_CEREBRAS_TIER", "free").strip().lower()
+    raw = os.getenv("SCRIBAI_CEREBRAS_TIER", "free").strip().lower()
     if raw in {"paygo", "paid", "developer"}:
         return "paygo"
     return "free"

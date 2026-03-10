@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from tqdm.auto import tqdm
 
-from scriba.pipeline.backends import (
+from scribai.pipeline.backends import (
     ChunkingHints,
     CompletionResult,
     ContextWindowError,
@@ -25,10 +25,10 @@ from scriba.pipeline.backends import (
     ModelSession,
     RateLimitError,
 )
-from scriba.pipeline.profile import StageConfig
-from scriba.pipeline.rate_limit_gate import SharedRateLimitGate
-from scriba.pipeline.state import utc_now_iso
-from scriba.token_count import estimate_token_count, estimated_chars_for_tokens
+from scribai.pipeline.profile import StageConfig
+from scribai.pipeline.rate_limit_gate import SharedRateLimitGate
+from scribai.pipeline.state import utc_now_iso
+from scribai.token_count import estimate_token_count, estimated_chars_for_tokens
 
 MAP_PROMPT_VERSION = "v1"
 
@@ -818,7 +818,7 @@ def _resolve_map_workers(
 
 
 def _resolve_map_rate_limit_retries() -> int:
-    raw = os.getenv("SCRIBA_MAP_RATE_LIMIT_RETRIES", "2").strip()
+    raw = os.getenv("SCRIBAI_MAP_RATE_LIMIT_RETRIES", "2").strip()
     try:
         parsed = int(raw)
     except ValueError:
@@ -847,7 +847,7 @@ def _normalize_map_progress_bar(
     if total <= 0:
         return _NoOpProgressBar()
 
-    enabled_raw = os.getenv("SCRIBA_PROGRESS", "1").strip().lower()
+    enabled_raw = os.getenv("SCRIBAI_PROGRESS", "1").strip().lower()
     if enabled_raw in {"0", "false", "no", "off"}:
         return _NoOpProgressBar()
 

@@ -1,14 +1,14 @@
 """Backend orchestration and transport clients for pipeline model roles."""
 
-from scriba.pipeline.backends.errors import (
+from scribai.pipeline.backends.errors import (
     BackendError,
     ContextWindowError,
     ModelClientError,
     ModelRequestTimeoutError,
     RateLimitError,
 )
-from scriba.pipeline.backends.manager import ModelManager
-from scriba.pipeline.backends.types import (
+from scribai.pipeline.backends.manager import ModelManager
+from scribai.pipeline.backends.types import (
     ChatModelClient,
     ChunkingHints,
     CompletionResult,

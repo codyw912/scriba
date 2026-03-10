@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from scriba.pipeline.backends.adapters import (
+from scribai.pipeline.backends.adapters import (
     AttachedOrRemoteLiteLLMBackendAdapter,
     BackendAdapter,
     LocalProcessLiteLLMBackendAdapter,
 )
-from scriba.pipeline.backends.errors import BackendError
-from scriba.pipeline.backends.types import ChunkingHints, ModelEndpoint, ModelSession
-from scriba.pipeline.profile import BackendConfig, PipelineProfile, RoleBinding
+from scribai.pipeline.backends.errors import BackendError
+from scribai.pipeline.backends.types import ChunkingHints, ModelEndpoint, ModelSession
+from scribai.pipeline.profile import BackendConfig, PipelineProfile, RoleBinding
 
 
 class ModelManager:

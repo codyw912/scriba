@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
-from scriba.token_count import estimate_token_count, estimated_chars_for_tokens
+from scribai.token_count import estimate_token_count, estimated_chars_for_tokens
 
 
 class _FakeEncoding:

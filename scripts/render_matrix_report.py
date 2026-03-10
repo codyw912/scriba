@@ -11,7 +11,7 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scriba.pipeline import load_profile, run_doctor
+from scribai.pipeline import load_profile, run_doctor
 
 
 def _parse_args() -> argparse.Namespace:

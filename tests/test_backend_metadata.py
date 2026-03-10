@@ -4,20 +4,20 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from scriba.pipeline.backends.adapters.litellm_adapter import (
+from scribai.pipeline.backends.adapters.litellm_adapter import (
     AttachedOrRemoteLiteLLMBackendAdapter,
 )
-from scriba.pipeline.backends.metadata_cerebras import (
+from scribai.pipeline.backends.metadata_cerebras import (
     lookup_context_length_from_cerebras,
     lookup_max_output_tokens_from_cerebras,
 )
-from scriba.pipeline.profile import BackendConfig
+from scribai.pipeline.profile import BackendConfig
 
 
 def test_lookup_context_length_from_cerebras_defaults_to_free_tier(
     monkeypatch,
 ) -> None:
-    monkeypatch.delenv("SCRIBA_CEREBRAS_TIER", raising=False)
+    monkeypatch.delenv("SCRIBAI_CEREBRAS_TIER", raising=False)
     value = lookup_context_length_from_cerebras(
         model="gpt-oss-120b",
         provider="cerebras",
@@ -26,7 +26,7 @@ def test_lookup_context_length_from_cerebras_defaults_to_free_tier(
 
 
 def test_lookup_context_length_from_cerebras_paygo_tier(monkeypatch) -> None:
-    monkeypatch.setenv("SCRIBA_CEREBRAS_TIER", "paygo")
+    monkeypatch.setenv("SCRIBAI_CEREBRAS_TIER", "paygo")
     value = lookup_context_length_from_cerebras(
         model="llama3.1-8b",
         provider="cerebras",
@@ -43,12 +43,12 @@ def test_lookup_context_length_from_cerebras_ignores_other_provider() -> None:
 
 
 def test_lookup_max_output_tokens_from_cerebras_by_tier(monkeypatch) -> None:
-    monkeypatch.setenv("SCRIBA_CEREBRAS_TIER", "free")
+    monkeypatch.setenv("SCRIBAI_CEREBRAS_TIER", "free")
     free_value = lookup_max_output_tokens_from_cerebras(
         model="gpt-oss-120b",
         provider="cerebras",
     )
-    monkeypatch.setenv("SCRIBA_CEREBRAS_TIER", "paygo")
+    monkeypatch.setenv("SCRIBAI_CEREBRAS_TIER", "paygo")
     paygo_value = lookup_max_output_tokens_from_cerebras(
         model="gpt-oss-120b",
         provider="cerebras",
@@ -70,7 +70,7 @@ def test_litellm_adapter_exposes_chunking_hints_from_openrouter_lookup() -> None
     )
 
     with patch(
-        "scriba.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
+        "scribai.pipeline.backends.adapters.litellm_adapter.lookup_context_length_from_openrouter",
         return_value=128000,
     ):
         hints = adapter.model_chunking_hints(model="qwen/qwen3.5-35b-a3b")
@@ -82,7 +82,7 @@ def test_litellm_adapter_exposes_chunking_hints_from_openrouter_lookup() -> None
 def test_litellm_adapter_exposes_cerebras_chunking_hints_from_catalog(
     monkeypatch,
 ) -> None:
-    monkeypatch.delenv("SCRIBA_CEREBRAS_TIER", raising=False)
+    monkeypatch.delenv("SCRIBAI_CEREBRAS_TIER", raising=False)
 
     adapter = AttachedOrRemoteLiteLLMBackendAdapter(
         name="remote_text",

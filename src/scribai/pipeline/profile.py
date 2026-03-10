@@ -1,4 +1,4 @@
-"""YAML profile loading and validation for scriba pipelines."""
+"""YAML profile loading and validation for scribai pipelines."""
 
 from __future__ import annotations
 

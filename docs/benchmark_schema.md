@@ -1,7 +1,7 @@
 # Benchmark Output Schema
 
 This document defines the minimum schema for repeatable profile/model
-comparisons in `scriba` phase 5.
+comparisons in `scribai` phase 5.
 
 ## Canonical backend axes
 

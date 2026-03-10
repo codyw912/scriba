@@ -1,7 +1,7 @@
 """Backend adapter implementations."""
 
-from scriba.pipeline.backends.adapters.base import BackendAdapter
-from scriba.pipeline.backends.adapters.litellm_adapter import (
+from scribai.pipeline.backends.adapters.base import BackendAdapter
+from scribai.pipeline.backends.adapters.litellm_adapter import (
     AttachedOrRemoteLiteLLMBackendAdapter,
     LocalProcessLiteLLMBackendAdapter,
 )

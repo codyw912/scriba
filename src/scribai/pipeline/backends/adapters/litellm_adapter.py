@@ -11,35 +11,35 @@ from typing import Any
 
 import httpx
 
-from scriba.pipeline.backends.adapters.base import BackendAdapter
-from scriba.pipeline.backends.errors import (
+from scribai.pipeline.backends.adapters.base import BackendAdapter
+from scribai.pipeline.backends.errors import (
     BackendError,
     ContextWindowError,
     ModelClientError,
     ModelRequestTimeoutError,
     RateLimitError,
 )
-from scriba.pipeline.backends.metadata_cerebras import (
+from scribai.pipeline.backends.metadata_cerebras import (
     lookup_context_length_from_cerebras,
     lookup_max_output_tokens_from_cerebras,
 )
-from scriba.pipeline.backends.metadata_openrouter import (
+from scribai.pipeline.backends.metadata_openrouter import (
     lookup_context_length_from_openrouter,
 )
-from scriba.pipeline.backends.rate_limit import choose_retry_delay
-from scriba.pipeline.backends.response_parsing import (
+from scribai.pipeline.backends.rate_limit import choose_retry_delay
+from scribai.pipeline.backends.response_parsing import (
     coerce_completion_payload,
     coerce_usage_int,
     extract_completion_text,
     extract_provider_error_message,
     sanitize_model_markdown,
 )
-from scriba.pipeline.backends.types import (
+from scribai.pipeline.backends.types import (
     ChunkingHints,
     CompletionResult,
     ModelEndpoint,
 )
-from scriba.pipeline.profile import BackendConfig
+from scribai.pipeline.profile import BackendConfig
 
 try:
     from litellm import completion as litellm_completion
@@ -256,7 +256,7 @@ class LocalProcessLiteLLMBackendAdapter(BackendAdapter):
         cmd = shlex.split(self.config.command)
         env = os.environ.copy()
         env.update(self.config.env)
-        passthrough_logs = os.getenv("SCRIBA_BACKEND_PASSTHROUGH_LOGS", "").lower() in {
+        passthrough_logs = os.getenv("SCRIBAI_BACKEND_PASSTHROUGH_LOGS", "").lower() in {
             "1",
             "true",
             "yes",

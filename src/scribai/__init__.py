@@ -1,4 +1,4 @@
-"""scriba package."""
+"""scribai package."""
 
 __all__ = ["__version__"]
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scriba.pipeline import ProfileError, load_profile
+from scribai.pipeline import ProfileError, load_profile
 
 
 def test_load_profile_defaults(tmp_path: Path) -> None:
@@ -267,7 +267,7 @@ def test_profile_role_resolution_defaults_reduce_to_normalize(tmp_path: Path) ->
 def test_profile_expands_env_api_key(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("SCRIBA_TEST_API_KEY", "secret-token")
+    monkeypatch.setenv("SCRIBAI_TEST_API_KEY", "secret-token")
     profile_path = tmp_path / "profile.yaml"
     profile_path.write_text(
         "\n".join(
@@ -280,7 +280,7 @@ def test_profile_expands_env_api_key(
                 "    provider: openrouter",
                 "    model_origin: hosted_weights",
                 "    base_url: https://openrouter.ai/api",
-                "    api_key: ${SCRIBA_TEST_API_KEY}",
+                "    api_key: ${SCRIBAI_TEST_API_KEY}",
                 "roles:",
                 "  normalize_text:",
                 "    backend: remote_backend",
@@ -298,8 +298,8 @@ def test_profile_expands_env_api_key(
 def test_profile_expands_env_for_artifacts_and_role_model(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("SCRIBA_TEST_ARTIFACTS", "./artifacts-env")
-    monkeypatch.setenv("SCRIBA_TEST_MODEL", "qwen/qwen3.5-flash-02-23")
+    monkeypatch.setenv("SCRIBAI_TEST_ARTIFACTS", "./artifacts-env")
+    monkeypatch.setenv("SCRIBAI_TEST_MODEL", "qwen/qwen3.5-flash-02-23")
 
     profile_path = tmp_path / "profile.yaml"
     profile_path.write_text(
@@ -307,7 +307,7 @@ def test_profile_expands_env_for_artifacts_and_role_model(
             [
                 "version: 1",
                 "artifacts:",
-                "  root: ${SCRIBA_TEST_ARTIFACTS}",
+                "  root: ${SCRIBAI_TEST_ARTIFACTS}",
                 "  run_id: test-run",
                 "backends:",
                 "  remote_backend:",
@@ -319,7 +319,7 @@ def test_profile_expands_env_for_artifacts_and_role_model(
                 "roles:",
                 "  normalize_text:",
                 "    backend: remote_backend",
-                "    model: ${SCRIBA_TEST_MODEL}",
+                "    model: ${SCRIBAI_TEST_MODEL}",
                 "",
             ]
         ),
