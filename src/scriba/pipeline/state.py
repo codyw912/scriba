@@ -148,13 +148,18 @@ class ArtifactStore:
         stage["completed_at"] = utc_now_iso()
         stage["error"] = error_message
         state["current_stage"] = stage_name
-        state["status"] = "failed"
+        state["status"] = "failed_runtime"
         state["error"] = error_message
         self.save_state(state)
 
-    def mark_run_completed(self, state: dict[str, Any]) -> None:
+    def mark_run_completed(
+        self,
+        state: dict[str, Any],
+        *,
+        status: str = "completed",
+    ) -> None:
         """Mark run as completed."""
-        state["status"] = "completed"
+        state["status"] = status
         state["current_stage"] = None
         state["error"] = None
         self.save_state(state)

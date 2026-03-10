@@ -242,7 +242,10 @@ def _allowed_run_ids_from_campaign(matrix_log: Path, campaign_id: str) -> set[st
             continue
         if str(row.get("campaign_id", "")) != campaign_id:
             continue
-        if str(row.get("status", "")) != "completed":
+        if str(row.get("status", "")) not in {
+            "completed",
+            "completed_with_validation_errors",
+        }:
             continue
         run_id = str(row.get("run_id", "")).strip()
         if run_id:

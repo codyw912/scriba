@@ -93,7 +93,10 @@ class PipelineRunner:
                     raise PipelineError(f"Stage '{stage_name}' failed: {exc}") from exc
                 self.store.mark_stage_completed(state, stage_name)
 
-        self.store.mark_run_completed(state)
+        self.store.mark_run_completed(
+            state,
+            status=self._resolve_final_run_status(state=state),
+        )
         return state
 
     def status(self, *, run_id: str) -> dict[str, Any]:
@@ -191,6 +194,16 @@ class PipelineRunner:
         if stage_name == "sectionize" and "normalize_text" in self.profile.roles:
             return "normalize_text"
         return STAGE_ROLE_BINDINGS.get(stage_name)
+
+    def _resolve_final_run_status(self, *, state: dict[str, Any]) -> str:
+        validate_stage = state.get("stages", {}).get("validate")
+        if isinstance(validate_stage, dict):
+            details = validate_stage.get("details")
+            if isinstance(details, dict):
+                hard_error_count = details.get("hard_error_count")
+                if isinstance(hard_error_count, int) and hard_error_count > 0:
+                    return "completed_with_validation_errors"
+        return "completed"
 
 
 def run_doctor(

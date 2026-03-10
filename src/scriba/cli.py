@@ -64,7 +64,7 @@ class ScribaConfig:
 DEFAULT_PASSTHROUGH_STAGE_CONFIG = {
     "sectionize": {"target_tokens": 5000, "overlap_tokens": 400},
     "normalize_map": {"temperature": 0.0, "request_timeout_s": 600},
-    "validate": {"fail_on_hard_errors": True},
+    "validate": {"fail_on_hard_errors": False},
     "export": {"multi_file": True},
 }
 
@@ -605,7 +605,7 @@ def _default_stages_for_preset() -> dict[str, StageConfig]:
         reasoning_effort="none",
         reasoning_exclude=True,
     )
-    stages["validate"] = StageConfig(enabled=True, fail_on_hard_errors=True)
+    stages["validate"] = StageConfig(enabled=True, fail_on_hard_errors=False)
     stages["export"] = StageConfig(enabled=True, multi_file=True)
     return stages
 

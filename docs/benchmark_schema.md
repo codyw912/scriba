@@ -23,7 +23,7 @@ Required fields:
 - `preset` (string, preset label or empty string for custom runs)
 - `profile` (string, profile path used)
 - `input` (string, input sample path)
-- `status` (enum: `doctor_ok`, `doctor_failed`, `completed`, `failed`, `skipped_large`, `skipped_limit`)
+- `status` (enum: `doctor_ok`, `doctor_failed`, `completed`, `completed_with_validation_errors`, `failed_runtime`, `skipped_large`, `skipped_limit`)
 
 Conditional fields:
 
@@ -67,6 +67,12 @@ Campaign summary section columns:
 - `started_at`
 - `last_at`
 
+Notes:
+
+- `completed` summary counts include both `completed` and
+  `completed_with_validation_errors` rows.
+- `failed` summary counts represent `failed_runtime` rows.
+
 Campaign trend section columns:
 
 - `profile`
@@ -94,6 +100,12 @@ Profile summary section columns:
 - `contract_fail_rate`
 - `min_tok_s`
 - `max_tok_s`
+
+Notes:
+
+- `completed` summary counts include both `completed` and
+  `completed_with_validation_errors` rows.
+- `failed` summary counts represent `failed_runtime` rows.
 
 Quality ranking section columns:
 

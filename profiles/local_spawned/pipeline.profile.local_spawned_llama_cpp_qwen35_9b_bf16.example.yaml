@@ -40,7 +40,7 @@ stages:
     enabled: true
   validate:
     enabled: true
-    fail_on_hard_errors: true
+    fail_on_hard_errors: false
   export:
     enabled: true
     multi_file: true

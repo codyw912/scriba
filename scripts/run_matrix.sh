@@ -182,6 +182,13 @@ fi
 echo "Matrix campaign: id=$CAMPAIGN_ID preset=${PRESET:-custom}"
 RUN_COUNT=0
 
+resolve_run_status() {
+	local profile="$1"
+	local run_id="$2"
+	uv run scriba status --profile "$profile" --run-id "$run_id" 2>/dev/null |
+		uv run python -c 'import json,sys; print(str(json.load(sys.stdin).get("status", "failed_runtime")))' 2>/dev/null
+}
+
 for profile in "${PROFILES[@]}"; do
 	profile_failed=0
 	for input in "${SAMPLES[@]}"; do
@@ -237,9 +244,19 @@ for profile in "${PROFILES[@]}"; do
 		run_id="matrix-${profile_base}-${sample_base}-${stamp}"
 
 		echo "Run: profile=$profile input=$input run_id=$run_id"
-		status="completed"
-		if ! uv run scriba run --profile "$profile" --input "$input" --run-id "$run_id"; then
-			status="failed"
+		status="failed_runtime"
+		if uv run scriba run --profile "$profile" --input "$input" --run-id "$run_id"; then
+			resolved_status="$(resolve_run_status "$profile" "$run_id")"
+			if [[ -n "$resolved_status" ]]; then
+				status="$resolved_status"
+			else
+				status="completed"
+			fi
+		else
+			resolved_status="$(resolve_run_status "$profile" "$run_id")"
+			if [[ -n "$resolved_status" ]]; then
+				status="$resolved_status"
+			fi
 		fi
 		RUN_COUNT=$((RUN_COUNT + 1))
 

@@ -66,6 +66,10 @@ def _parse_timestamp(value: object) -> datetime | None:
         return None
 
 
+def _is_completed_status(status: str) -> bool:
+    return status in {"completed", "completed_with_validation_errors"}
+
+
 def main() -> int:
     args = _parse_args()
     matrix_path = Path(args.matrix_jsonl).expanduser().resolve()
@@ -283,9 +287,9 @@ def main() -> int:
                 },
             )
             campaign_bucket["rows"] = int(campaign_bucket["rows"]) + 1
-            if status == "completed":
+            if _is_completed_status(status):
                 campaign_bucket["completed"] = int(campaign_bucket["completed"]) + 1
-            elif status == "failed":
+            elif status == "failed_runtime":
                 campaign_bucket["failed"] = int(campaign_bucket["failed"]) + 1
             elif status == "doctor_failed":
                 campaign_bucket["doctor_failed"] = (
@@ -336,17 +340,19 @@ def main() -> int:
                 },
             )
             bucket["rows"] = int(bucket["rows"]) + 1
-            if status == "completed":
+            if _is_completed_status(status):
                 bucket["completed"] = int(bucket["completed"]) + 1
-            elif status == "failed":
+            elif status == "failed_runtime":
                 bucket["failed"] = int(bucket["failed"]) + 1
             elif status == "doctor_failed":
                 bucket["doctor_failed"] = int(bucket["doctor_failed"]) + 1
             elif status.startswith("skipped"):
                 bucket["skipped"] = int(bucket["skipped"]) + 1
 
+            counts_as_completed = _is_completed_status(status)
+
             tok_value = telemetry.get("effective_tokens_per_second")
-            if isinstance(tok_value, (int, float)):
+            if counts_as_completed and isinstance(tok_value, (int, float)):
                 tok_values = bucket["tok_values"]
                 assert isinstance(tok_values, list)
                 tok_values.append(float(tok_value))
@@ -365,13 +371,15 @@ def main() -> int:
                 campaign_profile_values.append(float(tok_value))
 
             visible_tok_s = latest_row.get("visible_tok_s")
-            if isinstance(visible_tok_s, (int, float)):
+            if counts_as_completed and isinstance(visible_tok_s, (int, float)):
                 visible_tok_values = bucket["visible_tok_values"]
                 assert isinstance(visible_tok_values, list)
                 visible_tok_values.append(float(visible_tok_s))
 
             completion_output_ratio = latest_row.get("completion_output_ratio")
-            if isinstance(completion_output_ratio, (int, float)):
+            if counts_as_completed and isinstance(
+                completion_output_ratio, (int, float)
+            ):
                 completion_output_ratio_values = bucket[
                     "completion_output_ratio_values"
                 ]
@@ -379,7 +387,7 @@ def main() -> int:
                 completion_output_ratio_values.append(float(completion_output_ratio))
 
             quality_value = latest_row.get("quality_score")
-            if isinstance(quality_value, (int, float)):
+            if counts_as_completed and isinstance(quality_value, (int, float)):
                 campaign_quality_values = campaign_bucket["quality_values"]
                 assert isinstance(campaign_quality_values, list)
                 campaign_quality_values.append(float(quality_value))
@@ -389,19 +397,19 @@ def main() -> int:
                 profile_quality_values.append(float(quality_value))
 
             endpoint_recall_value = latest_row.get("endpoint_recall")
-            if isinstance(endpoint_recall_value, (int, float)):
+            if counts_as_completed and isinstance(endpoint_recall_value, (int, float)):
                 endpoint_recall_values = bucket["endpoint_recall_values"]
                 assert isinstance(endpoint_recall_values, list)
                 endpoint_recall_values.append(float(endpoint_recall_value))
 
             contract_recall_value = latest_row.get("contract_recall")
-            if isinstance(contract_recall_value, (int, float)):
+            if counts_as_completed and isinstance(contract_recall_value, (int, float)):
                 contract_recall_values = bucket["contract_recall_values"]
                 assert isinstance(contract_recall_values, list)
                 contract_recall_values.append(float(contract_recall_value))
 
             content_f1_value = latest_row.get("content_f1")
-            if isinstance(content_f1_value, (int, float)):
+            if counts_as_completed and isinstance(content_f1_value, (int, float)):
                 content_f1_values = bucket["content_f1_values"]
                 assert isinstance(content_f1_values, list)
                 content_f1_values.append(float(content_f1_value))

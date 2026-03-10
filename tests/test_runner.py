@@ -28,32 +28,41 @@ def _write_profile(tmp_path: Path) -> Path:
     return profile_path
 
 
-def _write_remote_profile(tmp_path: Path, *, api_key: str = "") -> Path:
+def _write_remote_profile(
+    tmp_path: Path,
+    *,
+    api_key: str = "",
+    fail_on_hard_errors: bool | None = None,
+) -> Path:
     profile_path = tmp_path / "profile_remote.yaml"
     artifacts_root = (tmp_path / "artifacts").as_posix()
-    profile_path.write_text(
-        "\n".join(
+    lines = [
+        "version: 1",
+        "artifacts:",
+        f"  root: {artifacts_root}",
+        "backends:",
+        "  remote_text:",
+        "    adapter: litellm",
+        "    topology: remote",
+        "    provider: openrouter",
+        "    model_origin: hosted_weights",
+        "    base_url: https://openrouter.ai/api",
+        f"    api_key: {api_key}",
+        "roles:",
+        "  normalize_text:",
+        "    backend: remote_text",
+        "    model: qwen/qwen3.5-35b-a3b",
+    ]
+    if fail_on_hard_errors is not None:
+        lines.extend(
             [
-                "version: 1",
-                "artifacts:",
-                f"  root: {artifacts_root}",
-                "backends:",
-                "  remote_text:",
-                "    adapter: litellm",
-                "    topology: remote",
-                "    provider: openrouter",
-                "    model_origin: hosted_weights",
-                "    base_url: https://openrouter.ai/api",
-                f"    api_key: {api_key}",
-                "roles:",
-                "  normalize_text:",
-                "    backend: remote_text",
-                "    model: qwen/qwen3.5-35b-a3b",
-                "",
+                "stages:",
+                "  validate:",
+                f"    fail_on_hard_errors: {'true' if fail_on_hard_errors else 'false'}",
             ]
-        ),
-        encoding="utf-8",
-    )
+        )
+    lines.append("")
+    profile_path.write_text("\n".join(lines), encoding="utf-8")
     return profile_path
 
 
@@ -314,3 +323,100 @@ def test_run_cerebras_profile_uses_litellm_adapter(tmp_path: Path) -> None:
         )
 
     assert state["status"] == "completed"
+
+
+def test_run_marks_completed_with_validation_errors_when_validation_finds_hard_errors(
+    tmp_path: Path,
+) -> None:
+    profile = load_profile(
+        _write_remote_profile(
+            tmp_path,
+            api_key='"token"',
+            fail_on_hard_errors=False,
+        )
+    )
+    runner = PipelineRunner(profile)
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# API\n\nGET /v1/ping\n", encoding="utf-8")
+
+    with (
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            return_value=(True, "ok"),
+        ),
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            return_value=CompletionResult(
+                text="# API\n\nNo endpoint preserved here.\n",
+                prompt_tokens=50,
+                completion_tokens=20,
+                total_tokens=70,
+                latency_s=0.5,
+                requests=1,
+                split_count=0,
+            ),
+        ),
+    ):
+        state = runner.run(
+            input_path=str(input_file),
+            run_id="run-validation-errors",
+            resume=False,
+        )
+
+    assert state["status"] == "completed_with_validation_errors"
+    run_dir = tmp_path / "artifacts" / "run-validation-errors"
+    validation = json.loads(
+        (run_dir / "final" / "validation_report.json").read_text(encoding="utf-8")
+    )
+    assert validation["ok"] is False
+    assert len(validation["hard_errors"]) > 0
+    assert (run_dir / "final" / "export_summary.json").exists()
+
+
+def test_run_marks_failed_runtime_when_strict_validation_raises(
+    tmp_path: Path,
+) -> None:
+    profile = load_profile(
+        _write_remote_profile(
+            tmp_path,
+            api_key='"token"',
+            fail_on_hard_errors=True,
+        )
+    )
+    runner = PipelineRunner(profile)
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# API\n\nGET /v1/ping\n", encoding="utf-8")
+
+    with (
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            return_value=(True, "ok"),
+        ),
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter.LiteLLMChatClient.complete",
+            return_value=CompletionResult(
+                text="# API\n\nNo endpoint preserved here.\n",
+                prompt_tokens=50,
+                completion_tokens=20,
+                total_tokens=70,
+                latency_s=0.5,
+                requests=1,
+                split_count=0,
+            ),
+        ),
+    ):
+        with pytest.raises(PipelineError, match="Stage 'validate' failed"):
+            runner.run(
+                input_path=str(input_file),
+                run_id="run-strict-validation-errors",
+                resume=False,
+            )
+
+    state = runner.status(run_id="run-strict-validation-errors")
+    assert state["status"] == "failed_runtime"
+    run_dir = tmp_path / "artifacts" / "run-strict-validation-errors"
+    assert (run_dir / "final" / "merged.md").exists()
+    assert (run_dir / "final" / "validation_report.json").exists()
+    assert not (run_dir / "final" / "export_summary.json").exists()
