@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from scriba.pipeline.backends import ModelEndpoint
-from scriba.pipeline.backends.adapters.litellm_adapter import LiteLLMChatClient
-from scriba.pipeline.backends.errors import ModelClientError, RateLimitError
+from scribai.pipeline.backends import ModelEndpoint
+from scribai.pipeline.backends.adapters.litellm_adapter import LiteLLMChatClient
+from scribai.pipeline.backends.errors import ModelClientError, RateLimitError
 
 
 class _FakeLiteLLMError(Exception):
@@ -59,7 +59,7 @@ def test_litellm_client_parses_text_content_list() -> None:
     client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
         return_value=response,
     ):
         result = client.complete(
@@ -80,7 +80,7 @@ def test_litellm_client_raises_for_error_payload() -> None:
     client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
         return_value=response,
     ):
         with pytest.raises(ModelClientError, match="rate_limited"):
@@ -96,7 +96,7 @@ def test_litellm_client_raises_for_missing_content() -> None:
     client = LiteLLMChatClient(_endpoint())
 
     with patch(
-        "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+        "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
         return_value={"id": "abc123"},
     ):
         with pytest.raises(ModelClientError, match="missing completion content"):
@@ -141,11 +141,11 @@ def test_litellm_client_retries_retryable_http_status() -> None:
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
             side_effect=_fake_completion,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.time.sleep",
+            "scribai.pipeline.backends.adapters.litellm_adapter.time.sleep",
             return_value=None,
         ) as sleep_mock,
     ):
@@ -191,11 +191,11 @@ def test_litellm_client_raises_rate_limit_error_after_retries() -> None:
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
             side_effect=_fake_completion,
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.time.sleep",
+            "scribai.pipeline.backends.adapters.litellm_adapter.time.sleep",
             return_value=None,
         ),
     ):

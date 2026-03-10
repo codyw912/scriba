@@ -1,4 +1,4 @@
-"""CLI entrypoint for scriba."""
+"""CLI entrypoint for scribai."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from typing import Any, Sequence
 
 import yaml
 
-from scriba.pipeline import PipelineError, PipelineRunner, ProfileError, load_profile
-from scriba.pipeline.profile import (
+from scribai.pipeline import PipelineError, PipelineRunner, ProfileError, load_profile
+from scribai.pipeline.profile import (
     DEFAULT_STAGE_ORDER,
     ArtifactsConfig,
     BackendConfig,
@@ -54,7 +54,7 @@ AUTO_PRESET_PRIORITY: tuple[str, ...] = ("openrouter", "cerebras", "openai")
 
 
 @dataclass(frozen=True)
-class ScribaConfig:
+class ScribaiConfig:
     preset: str | None = None
     artifacts_root: Path | None = None
     provider_priority: tuple[str, ...] = AUTO_PRESET_PRIORITY
@@ -71,7 +71,7 @@ DEFAULT_PASSTHROUGH_STAGE_CONFIG = {
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="scriba",
+        prog="scribai",
         description="CLI-first document normalization pipeline",
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -169,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 1
 
-    config = _load_scriba_config()
+    config = _load_scribai_config()
 
     try:
         if args.command == "run":
@@ -329,7 +329,7 @@ def _copy_final_outputs(*, artifacts_root: Path, run_id: str, output_path: str) 
 
 def _load_profile_for_command(
     *,
-    config: ScribaConfig,
+    config: ScribaiConfig,
     profile: str | None,
     preset: str | None,
     artifacts_root: str | None,
@@ -363,7 +363,7 @@ def _load_profile_for_command(
 
 
 def _load_preset_profile(
-    *, config: ScribaConfig, preset: str, enforce_model_backend: bool
+    *, config: ScribaiConfig, preset: str, enforce_model_backend: bool
 ) -> PipelineProfile:
     if preset == "passthrough":
         return _build_passthrough_profile(source_label="passthrough")
@@ -390,13 +390,13 @@ def _load_preset_profile(
     raise ProfileError(f"Unknown preset: {preset}")
 
 
-def _auto_select_provider_preset(*, config: ScribaConfig) -> str | None:
-    forced_provider = os.getenv("SCRIBA_PROVIDER", "").strip().lower()
+def _auto_select_provider_preset(*, config: ScribaiConfig) -> str | None:
+    forced_provider = os.getenv("SCRIBAI_PROVIDER", "").strip().lower()
     if forced_provider:
         if forced_provider not in PRESET_PROVIDER_CONFIG:
             allowed = ", ".join(sorted(PRESET_PROVIDER_CONFIG.keys()))
             raise ProfileError(
-                f"SCRIBA_PROVIDER must be one of: {allowed}. Got: {forced_provider}"
+                f"SCRIBAI_PROVIDER must be one of: {allowed}. Got: {forced_provider}"
             )
         return forced_provider
 
@@ -419,33 +419,33 @@ def _missing_provider_error_message() -> str:
     )
 
 
-def _load_scriba_config() -> ScribaConfig:
+def _load_scribai_config() -> ScribaiConfig:
     config_path = _scriba_home() / "config.yaml"
     if not config_path.exists() or not config_path.is_file():
-        return ScribaConfig()
+        return ScribaiConfig()
 
     try:
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        raise ProfileError(f"Invalid scriba config YAML: {config_path}") from exc
+        raise ProfileError(f"Invalid scribai config YAML: {config_path}") from exc
 
     if raw is None:
-        return ScribaConfig()
+        return ScribaiConfig()
     if not isinstance(raw, dict):
-        raise ProfileError("scriba config must be a YAML mapping")
+        raise ProfileError("scribai config must be a YAML mapping")
 
     defaults_raw = raw.get("defaults", {})
     models_raw = raw.get("models", {})
     if not isinstance(defaults_raw, dict):
-        raise ProfileError("scriba config 'defaults' must be a mapping")
+        raise ProfileError("scribai config 'defaults' must be a mapping")
     if not isinstance(models_raw, dict):
-        raise ProfileError("scriba config 'models' must be a mapping")
+        raise ProfileError("scribai config 'models' must be a mapping")
 
     preset = defaults_raw.get("preset")
     if preset is not None and preset not in PRESET_CHOICES:
         allowed = ", ".join(sorted(PRESET_CHOICES))
         raise ProfileError(
-            f"scriba config default preset must be one of: {allowed}. Got: {preset}"
+            f"scribai config default preset must be one of: {allowed}. Got: {preset}"
         )
 
     artifacts_root_raw = defaults_raw.get("artifacts_root")
@@ -459,7 +459,7 @@ def _load_scriba_config() -> ScribaConfig:
     provider_priority = _parse_provider_priority(provider_priority_raw)
     provider_models = _parse_provider_models(models_raw)
 
-    return ScribaConfig(
+    return ScribaiConfig(
         preset=str(preset) if isinstance(preset, str) else None,
         artifacts_root=artifacts_root,
         provider_priority=provider_priority,
@@ -471,19 +471,19 @@ def _parse_provider_priority(value: Any) -> tuple[str, ...]:
     if value is None:
         return AUTO_PRESET_PRIORITY
     if not isinstance(value, list):
-        raise ProfileError("scriba config defaults.provider_priority must be a list")
+        raise ProfileError("scribai config defaults.provider_priority must be a list")
 
     priority: list[str] = []
     for item in value:
         if not isinstance(item, str):
             raise ProfileError(
-                "scriba config defaults.provider_priority entries must be strings"
+                "scribai config defaults.provider_priority entries must be strings"
             )
         provider = item.strip().lower()
         if provider not in PRESET_PROVIDER_CONFIG:
             allowed = ", ".join(sorted(PRESET_PROVIDER_CONFIG.keys()))
             raise ProfileError(
-                "scriba config defaults.provider_priority contains unsupported "
+                "scribai config defaults.provider_priority contains unsupported "
                 f"provider '{provider}'. Allowed: {allowed}"
             )
         if provider not in priority:
@@ -497,18 +497,18 @@ def _parse_provider_models(value: dict[str, Any]) -> dict[str, str]:
     for provider, raw_model in value.items():
         if not isinstance(provider, str) or not isinstance(raw_model, str):
             raise ProfileError(
-                "scriba config models entries must map strings to strings"
+                "scribai config models entries must map strings to strings"
             )
         provider_key = provider.strip().lower()
         if provider_key not in PRESET_PROVIDER_CONFIG:
             allowed = ", ".join(sorted(PRESET_PROVIDER_CONFIG.keys()))
             raise ProfileError(
-                f"scriba config models contains unsupported provider '{provider_key}'. Allowed: {allowed}"
+                f"scribai config models contains unsupported provider '{provider_key}'. Allowed: {allowed}"
             )
         model = raw_model.strip()
         if not model:
             raise ProfileError(
-                f"scriba config model for provider '{provider_key}' cannot be empty"
+                f"scribai config model for provider '{provider_key}' cannot be empty"
             )
         models[provider_key] = model
     return models
@@ -532,7 +532,7 @@ def _default_stages_for_passthrough() -> dict[str, StageConfig]:
     return stages
 
 
-def _resolve_provider_model(*, config: ScribaConfig, preset: str) -> str:
+def _resolve_provider_model(*, config: ScribaiConfig, preset: str) -> str:
     if config.provider_models and preset in config.provider_models:
         return config.provider_models[preset]
     return PRESET_PROVIDER_CONFIG[preset]["default_model"]
@@ -543,15 +543,15 @@ def _default_artifacts_root() -> Path:
 
 
 def _scriba_home() -> Path:
-    configured = os.getenv("SCRIBA_HOME", "").strip()
+    configured = os.getenv("SCRIBAI_HOME", "").strip()
     if configured:
         return Path(configured).expanduser()
-    return Path.home() / ".scriba"
+    return Path.home() / ".scribai"
 
 
 def _build_remote_preset_profile(
     *,
-    config: ScribaConfig,
+    config: ScribaiConfig,
     preset: str,
     source_label: str,
 ) -> PipelineProfile:

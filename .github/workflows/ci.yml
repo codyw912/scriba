@@ -52,15 +52,15 @@ jobs:
 
       - name: Smoke test installed wheel
         env:
-          SCRIBA_HOME: ${{ runner.temp }}/scriba-home
+          SCRIBAI_HOME: ${{ runner.temp }}/scribai-home
         run: |
-          uv tool run --from dist/*.whl scriba --help
-          uv tool run --from dist/*.whl scriba doctor --preset passthrough --input samples/docs/mini_api.md
-          uv tool run --from dist/*.whl scriba run --preset passthrough --input samples/docs/mini_api.md --run-id ci-smoke --output ${{ runner.temp }}/scriba-output
-          uv tool run --from dist/*.whl scriba status --run-id ci-smoke
+          uv tool run --from dist/*.whl scribai --help
+          uv tool run --from dist/*.whl scribai doctor --preset passthrough --input samples/docs/mini_api.md
+          uv tool run --from dist/*.whl scribai run --preset passthrough --input samples/docs/mini_api.md --run-id ci-smoke --output ${{ runner.temp }}/scribai-output
+          uv tool run --from dist/*.whl scribai status --run-id ci-smoke
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:
-          name: scriba-dist
+          name: scribai-dist
           path: dist/*

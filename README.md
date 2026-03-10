@@ -1,4 +1,4 @@
-# scriba
+# scribai
 
 CLI-first pipeline for turning PDFs (and other OCR-able inputs) into clean,
 accurate markdown.
@@ -11,7 +11,7 @@ resumable artifacts, and profile-driven backend control.
 - Runs a deterministic stage pipeline on local inputs:
   - `extract -> clean -> sectionize -> normalize_map -> reduce -> validate -> export`
 - Supports local, remote, and hybrid model backends through YAML profiles.
-- Writes complete run artifacts under `~/.scriba/artifacts/<run_id>/...` by default for auditing and resume.
+- Writes complete run artifacts under `~/.scribai/artifacts/<run_id>/...` by default for auditing and resume.
 - Exposes simple CLI commands for run/status/doctor checks.
 
 ## Install
@@ -22,7 +22,13 @@ For source-tree development:
 uv sync --group dev
 ```
 
-Install as a local CLI tool:
+Install from PyPI:
+
+```bash
+uv tool install scribai
+```
+
+Install the current checkout as a local CLI tool:
 
 ```bash
 uv tool install .
@@ -33,31 +39,31 @@ uv tool install .
 Run on a sample markdown fixture:
 
 ```bash
-uv run scriba run \
+uv run scribai run \
   --input samples/docs/mini_api.md
 ```
 
 For an installed tool, the equivalent command is just:
 
 ```bash
-scriba run --input /path/to/file.pdf
+scribai run --input /path/to/file.pdf
 ```
 
-By default, `scriba` uses the built-in `auto` preset when neither `--profile`
+By default, `scribai` uses the built-in `auto` preset when neither `--profile`
 nor `--preset` is provided. `auto` picks the first configured provider API key
 from `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, or `OPENAI_API_KEY`.
 
 If no provider key is set, use `--preset passthrough` (no model normalization)
 or pass an explicit `--profile`.
 
-Installed CLI usage is runtime-native: `scriba` stores optional user config in
-`~/.scriba/config.yaml` and writes artifacts to `~/.scriba/artifacts/` by
-default. Set `SCRIBA_HOME` to move both locations.
+Installed CLI usage is runtime-native: `scribai` stores optional user config in
+`~/.scribai/config.yaml` and writes artifacts to `~/.scribai/artifacts/` by
+default. Set `SCRIBAI_HOME` to move both locations.
 
 Run with a built-in preset (no profile path needed):
 
 ```bash
-uv run scriba run \
+uv run scribai run \
   --preset openrouter \
   --input /path/to/file.pdf
 ```
@@ -72,7 +78,7 @@ Optional quick overrides:
 Validate profile + input before running:
 
 ```bash
-uv run scriba doctor \
+uv run scribai doctor \
   --profile profiles/pipeline.profile.example.yaml \
   --input samples/docs/mini_api.md
 ```
@@ -80,30 +86,30 @@ uv run scriba doctor \
 Inspect a run by ID:
 
 ```bash
-uv run scriba status \
+uv run scribai status \
   --profile profiles/pipeline.profile.example.yaml \
   --run-id <run_id>
 ```
 
 ## CLI
 
-- `scriba run --profile ... --input ... [--run-id ...] [--resume]`
-- `scriba run --input ...` (defaults to `--preset auto`)
-- `scriba run --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
-- `scriba run ... --output <dir>` copies `artifacts/<run_id>/final/` to `<dir>`
-- `scriba status --profile ... --run-id ...`
-- `scriba status --run-id ...` (defaults to `--preset auto`)
-- `scriba status --preset <auto|openrouter|cerebras|openai|passthrough> --run-id ...`
-- `scriba doctor --profile ... --input ...`
-- `scriba doctor --input ...` (defaults to `--preset auto`)
-- `scriba doctor --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
+- `scribai run --profile ... --input ... [--run-id ...] [--resume]`
+- `scribai run --input ...` (defaults to `--preset auto`)
+- `scribai run --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
+- `scribai run ... --output <dir>` copies `artifacts/<run_id>/final/` to `<dir>`
+- `scribai status --profile ... --run-id ...`
+- `scribai status --run-id ...` (defaults to `--preset auto`)
+- `scribai status --preset <auto|openrouter|cerebras|openai|passthrough> --run-id ...`
+- `scribai doctor --profile ... --input ...`
+- `scribai doctor --input ...` (defaults to `--preset auto`)
+- `scribai doctor --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
 
 ## Installed Usage
 
-- Default home: `~/.scriba`
-- Optional config: `~/.scriba/config.yaml`
-- Default artifacts root: `~/.scriba/artifacts`
-- Override home root with `SCRIBA_HOME=/custom/path`
+- Default home: `~/.scribai`
+- Optional config: `~/.scribai/config.yaml`
+- Default artifacts root: `~/.scribai/artifacts`
+- Override home root with `SCRIBAI_HOME=/custom/path`
 
 Minimal optional config example:
 
@@ -111,7 +117,7 @@ Minimal optional config example:
 version: 1
 defaults:
   preset: auto
-  artifacts_root: ~/.scriba/artifacts
+  artifacts_root: ~/.scribai/artifacts
   provider_priority:
     - openrouter
     - cerebras
@@ -122,14 +128,14 @@ models:
   openai: gpt-4o-mini
 ```
 
-Precedence is: CLI flags > explicit `--profile` > `~/.scriba/config.yaml` > built-in defaults.
+Precedence is: CLI flags > explicit `--profile` > `~/.scribai/config.yaml` > built-in defaults.
 
 ## Profiles
 
 Profile files live in `profiles/` and are organized by topology:
 
 - `profiles/pipeline.profile.example.yaml` - minimal baseline
-- `profiles/local_spawned/` - scriba launches backend process
+- `profiles/local_spawned/` - scribai launches backend process
 - `profiles/local_attached/` - connect to an already-running local backend
 - `profiles/remote/` - hosted provider profiles
 - `profiles/hybrid/` - mixed local/remote profile patterns
@@ -144,8 +150,8 @@ default runs.
 
 For PDF inputs, extraction follows this order:
 
-1. If a profile defines an `ocr_vision` role, `scriba` calls that vision model for OCR extraction.
-2. If no `ocr_vision` role exists (or OCR vision extraction fails), `scriba` falls back to local `pymupdf4llm` extraction.
+1. If a profile defines an `ocr_vision` role, `scribai` calls that vision model for OCR extraction.
+2. If no `ocr_vision` role exists (or OCR vision extraction fails), `scribai` falls back to local `pymupdf4llm` extraction.
 
 Current hosted/hybrid examples are intentionally anchored to **GLM-OCR** as the
 default OCR model (`provider: glm_ocr`, `model: glm-ocr`).
@@ -167,15 +173,15 @@ Copy `.env.example` to `.env` and set credentials as needed:
 
 Useful runtime controls:
 
-- `SCRIBA_PROGRESS=0` disables tqdm map-stage progress bar
-- `SCRIBA_MAP_RATE_LIMIT_RETRIES=<int>` sets per-chunk retry budget for rate-limit events
-- `SCRIBA_CEREBRAS_TIER=paygo` switches Cerebras metadata assumptions to paygo tier
-- `SCRIBA_BACKEND_PASSTHROUGH_LOGS=1` shows spawned backend stdout/stderr
+- `SCRIBAI_PROGRESS=0` disables tqdm map-stage progress bar
+- `SCRIBAI_MAP_RATE_LIMIT_RETRIES=<int>` sets per-chunk retry budget for rate-limit events
+- `SCRIBAI_CEREBRAS_TIER=paygo` switches Cerebras metadata assumptions to paygo tier
+- `SCRIBAI_BACKEND_PASSTHROUGH_LOGS=1` shows spawned backend stdout/stderr
 
 ## Reliability notes
 
 - Use explicit `--run-id` for long jobs so reruns can safely `--resume`.
-- Review run artifacts in `~/.scriba/artifacts/<run_id>/` by default (map telemetry, validation report, final markdown).
+- Review run artifacts in `~/.scribai/artifacts/<run_id>/` by default (map telemetry, validation report, final markdown).
 - Keep profile config as the source of truth for backend behavior (timeouts, workers, output limits).
 
 ## Large-document preflight

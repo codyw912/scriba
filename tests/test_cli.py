@@ -1,9 +1,9 @@
-"""CLI tests for scriba scaffold commands."""
+"""CLI tests for scribai scaffold commands."""
 
 from pathlib import Path
 from unittest.mock import patch
 
-from scriba.cli import _reasoning_efficiency_warning, main
+from scribai.cli import _reasoning_efficiency_warning, main
 
 
 def _write_profile(tmp_path: Path) -> Path:
@@ -156,7 +156,7 @@ def test_cli_run_passthrough_uses_runtime_native_home(
     monkeypatch,
 ) -> None:
     scriba_home = tmp_path / "home"
-    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("SCRIBAI_HOME", str(scriba_home))
 
     input_file = tmp_path / "sample.md"
     input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
@@ -185,7 +185,7 @@ def test_cli_run_output_copies_final_directory(
     capsys,
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("SCRIBA_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SCRIBAI_HOME", str(tmp_path / "home"))
     input_file = tmp_path / "sample.md"
     input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
 
@@ -216,7 +216,7 @@ def test_cli_run_output_rejects_file_destination(
     capsys,
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("SCRIBA_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SCRIBAI_HOME", str(tmp_path / "home"))
     input_file = tmp_path / "sample.md"
     input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
     output_file = tmp_path / "out.md"
@@ -280,11 +280,11 @@ def test_cli_run_defaults_to_auto_preset_with_openrouter_key(
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
             return_value={
                 "choices": [{"message": {"content": "# Doc\n\nGET /v1/ping\n"}}],
                 "usage": {
@@ -317,7 +317,7 @@ def test_cli_uses_config_default_preset_and_model(
     monkeypatch,
 ) -> None:
     scriba_home = tmp_path / "home"
-    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("SCRIBAI_HOME", str(scriba_home))
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-token")
     _write_scriba_config(
         scriba_home,
@@ -347,11 +347,11 @@ def test_cli_uses_config_default_preset_and_model(
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
             side_effect=_capture_completion,
         ),
     ):
@@ -370,7 +370,7 @@ def test_cli_status_uses_config_artifacts_root_without_provider_key(
     monkeypatch,
 ) -> None:
     scriba_home = tmp_path / "home"
-    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("SCRIBAI_HOME", str(scriba_home))
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -417,7 +417,7 @@ def test_cli_config_provider_priority_controls_auto_selection(
     monkeypatch,
 ) -> None:
     scriba_home = tmp_path / "home"
-    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("SCRIBAI_HOME", str(scriba_home))
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-token")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-token")
     _write_scriba_config(
@@ -448,11 +448,11 @@ def test_cli_config_provider_priority_controls_auto_selection(
 
     with (
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            "scribai.pipeline.backends.adapters.litellm_adapter._probe_health",
             return_value=(True, "ok"),
         ),
         patch(
-            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            "scribai.pipeline.backends.adapters.litellm_adapter.litellm_completion",
             side_effect=_capture_completion,
         ),
     ):

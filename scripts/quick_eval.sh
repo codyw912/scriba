@@ -64,14 +64,14 @@ for input in "${SAMPLES[@]}"; do
 	fi
 
 	echo "Doctor: $input"
-	uv run scriba doctor --profile "$PROFILE" --input "$input"
+	uv run scribai doctor --profile "$PROFILE" --input "$input"
 
 	if [[ "$DOCTOR_ONLY" -eq 0 ]]; then
 		base="$(basename "$input")"
 		stamp="$(date +%Y%m%d-%H%M%S)"
 		run_id="quick-${base}-${stamp}"
 		echo "Run: $input (run_id=$run_id)"
-		uv run scriba run --profile "$PROFILE" --input "$input" --run-id "$run_id"
+		uv run scribai run --profile "$PROFILE" --input "$input" --run-id "$run_id"
 	fi
 done
 

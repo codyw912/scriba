@@ -2,7 +2,7 @@
 
 - `profiles/pipeline.profile.example.yaml`: minimal baseline profile
 - `profiles/local_attached/`: profiles that connect to an already-running local backend
-- `profiles/local_spawned/`: profiles where scriba launches and manages the backend process
+- `profiles/local_spawned/`: profiles where scribai launches and manages the backend process
 - `profiles/remote/`: hosted provider profiles (for example OpenRouter)
 - `profiles/hybrid/`: mixed-topology profiles
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from scriba.pipeline.backends.rate_limit import (
+from scribai.pipeline.backends.rate_limit import (
     backoff_delay_seconds,
     choose_retry_delay,
     retry_delay_from_headers,

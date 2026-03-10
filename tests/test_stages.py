@@ -8,15 +8,15 @@ from unittest.mock import patch
 
 import pytest
 
-from scriba.pipeline.backends import (
+from scribai.pipeline.backends import (
     ChunkingHints,
     CompletionResult,
     ModelEndpoint,
     ModelSession,
     RateLimitError,
 )
-from scriba.pipeline.profile import StageConfig
-from scriba.pipeline.stages import StageExecutionError, execute_stage
+from scribai.pipeline.profile import StageConfig
+from scribai.pipeline.stages import StageExecutionError, execute_stage
 
 
 class _QueueChatClient:
@@ -362,7 +362,7 @@ def test_extract_pdf_uses_ocr_vision_endpoint_when_available(tmp_path: Path) -> 
     model_session = _session(endpoint=endpoint)
 
     with patch(
-        "scriba.pipeline.stages._extract_pdf_markdown_with_vision_endpoint",
+        "scribai.pipeline.stages._extract_pdf_markdown_with_vision_endpoint",
         return_value="# OCR\n\nExtracted text\n",
     ) as vision_mock:
         result = execute_stage(
@@ -394,11 +394,11 @@ def test_extract_pdf_falls_back_when_ocr_vision_errors(tmp_path: Path) -> None:
 
     with (
         patch(
-            "scriba.pipeline.stages._extract_pdf_markdown_with_vision_endpoint",
+            "scribai.pipeline.stages._extract_pdf_markdown_with_vision_endpoint",
             side_effect=StageExecutionError("ocr unavailable"),
         ),
         patch(
-            "scriba.pipeline.stages._extract_pdf_markdown",
+            "scribai.pipeline.stages._extract_pdf_markdown",
             return_value="# Fallback\n\ntext\n",
         ),
     ):

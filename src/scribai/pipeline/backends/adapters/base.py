@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from scriba.pipeline.backends.types import (
+from scribai.pipeline.backends.types import (
     ChatModelClient,
     ChunkingHints,
     ModelEndpoint,
 )
-from scriba.pipeline.profile import BackendConfig
+from scribai.pipeline.profile import BackendConfig
 
 
 class BackendAdapter:

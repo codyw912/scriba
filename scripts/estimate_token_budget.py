@@ -7,7 +7,7 @@ import argparse
 import math
 from pathlib import Path
 
-from scriba.token_count import estimate_token_count
+from scribai.token_count import estimate_token_count
 
 
 def main() -> int:

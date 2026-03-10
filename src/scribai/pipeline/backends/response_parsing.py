@@ -6,7 +6,7 @@ import json
 import re
 from typing import Any
 
-from scriba.pipeline.backends.errors import ModelClientError
+from scribai.pipeline.backends.errors import ModelClientError
 
 
 def parse_json_response_payload(*, status_code: int, body_text: str) -> dict[str, Any]:

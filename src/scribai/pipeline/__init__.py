@@ -1,6 +1,6 @@
-"""Pipeline orchestration and profile loading for scriba."""
+"""Pipeline orchestration and profile loading for scribai."""
 
-from scriba.pipeline.backends import (
+from scribai.pipeline.backends import (
     BackendError,
     ChunkingHints,
     CompletionResult,
@@ -8,13 +8,13 @@ from scriba.pipeline.backends import (
     ModelManager,
     ModelSession,
 )
-from scriba.pipeline.profile import (
+from scribai.pipeline.profile import (
     DEFAULT_STAGE_ORDER,
     PipelineProfile,
     ProfileError,
     load_profile,
 )
-from scriba.pipeline.runner import PipelineError, PipelineRunner, run_doctor
+from scribai.pipeline.runner import PipelineError, PipelineRunner, run_doctor
 
 __all__ = [
     "BackendError",

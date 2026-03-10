@@ -9,10 +9,10 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from scriba.pipeline.backends import BackendError, ModelManager, ModelSession
-from scriba.pipeline.profile import PipelineProfile
-from scriba.pipeline.state import ArtifactStore, StateError, utc_now_iso
-from scriba.pipeline.stages import StageExecutionError, execute_stage
+from scribai.pipeline.backends import BackendError, ModelManager, ModelSession
+from scribai.pipeline.profile import PipelineProfile
+from scribai.pipeline.state import ArtifactStore, StateError, utc_now_iso
+from scribai.pipeline.stages import StageExecutionError, execute_stage
 
 
 STAGE_ROLE_BINDINGS: dict[str, str] = {
