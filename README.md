@@ -20,6 +20,12 @@ resumable artifacts, and profile-driven backend control.
 uv sync --group dev
 ```
 
+Install as a CLI tool:
+
+```bash
+uv tool install .
+```
+
 ## Quick start
 
 Run on a sample markdown fixture:
@@ -36,6 +42,10 @@ from `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, or `OPENAI_API_KEY`.
 If no provider key is set, use `--preset passthrough` (no model normalization)
 or pass an explicit `--profile`.
 
+Installed CLI usage is runtime-native: `scriba` stores optional user config in
+`~/.scriba/config.yaml` and writes artifacts to `~/.scriba/artifacts/` by
+default. Set `SCRIBA_HOME` to move both locations.
+
 Run with a built-in preset (no profile path needed):
 
 ```bash
@@ -49,6 +59,7 @@ Optional quick overrides:
 - `--text-model <model_id>`
 - `--ocr-model <model_id>`
 - `--artifacts-root <path>`
+- `--output <dir>` copies the final exported outputs to a user-facing directory
 
 Validate profile + input before running:
 
@@ -71,12 +82,39 @@ uv run scriba status \
 - `scriba run --profile ... --input ... [--run-id ...] [--resume]`
 - `scriba run --input ...` (defaults to `--preset auto`)
 - `scriba run --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
+- `scriba run ... --output <dir>` copies `artifacts/<run_id>/final/` to `<dir>`
 - `scriba status --profile ... --run-id ...`
 - `scriba status --run-id ...` (defaults to `--preset auto`)
 - `scriba status --preset <auto|openrouter|cerebras|openai|passthrough> --run-id ...`
 - `scriba doctor --profile ... --input ...`
 - `scriba doctor --input ...` (defaults to `--preset auto`)
 - `scriba doctor --preset <auto|openrouter|cerebras|openai|passthrough> --input ...`
+
+## Installed Usage
+
+- Default home: `~/.scriba`
+- Optional config: `~/.scriba/config.yaml`
+- Default artifacts root: `~/.scriba/artifacts`
+- Override home root with `SCRIBA_HOME=/custom/path`
+
+Minimal optional config example:
+
+```yaml
+version: 1
+defaults:
+  preset: auto
+  artifacts_root: ~/.scriba/artifacts
+  provider_priority:
+    - openrouter
+    - cerebras
+    - openai
+models:
+  openrouter: qwen/qwen3.5-35b-a3b
+  cerebras: gpt-oss-120b
+  openai: gpt-4o-mini
+```
+
+Precedence is: CLI flags > explicit `--profile` > `~/.scriba/config.yaml` > built-in defaults.
 
 ## Profiles
 
@@ -89,6 +127,10 @@ Profile files live in `profiles/` and are organized by topology:
 - `profiles/hybrid/` - mixed local/remote profile patterns
 
 See `profiles/README.md` for layout details.
+
+Those example profiles are primarily for source-tree and advanced custom usage.
+The installed CLI does not depend on the repository `profiles/` directory for
+default runs.
 
 ## OCR behavior (explicit)
 

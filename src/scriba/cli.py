@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, Sequence
+
+import yaml
 
 from scriba.pipeline import PipelineError, PipelineRunner, ProfileError, load_profile
 from scriba.pipeline.profile import (
@@ -50,6 +53,22 @@ PRESET_PROVIDER_CONFIG: dict[str, dict[str, str]] = {
 AUTO_PRESET_PRIORITY: tuple[str, ...] = ("openrouter", "cerebras", "openai")
 
 
+@dataclass(frozen=True)
+class ScribaConfig:
+    preset: str | None = None
+    artifacts_root: Path | None = None
+    provider_priority: tuple[str, ...] = AUTO_PRESET_PRIORITY
+    provider_models: dict[str, str] | None = None
+
+
+DEFAULT_PASSTHROUGH_STAGE_CONFIG = {
+    "sectionize": {"target_tokens": 5000, "overlap_tokens": 400},
+    "normalize_map": {"temperature": 0.0, "request_timeout_s": 600},
+    "validate": {"fail_on_hard_errors": True},
+    "export": {"multi_file": True},
+}
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="scriba",
@@ -67,6 +86,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--input", required=True, help="Path to local input file")
     run_parser.add_argument("--run-id", default=None, help="Optional explicit run id")
+    run_parser.add_argument(
+        "--output",
+        default=None,
+        help="Copy final exported outputs to this destination directory",
+    )
     run_parser.add_argument(
         "--artifacts-root",
         default=None,
@@ -145,9 +169,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 1
 
+    config = _load_scriba_config()
+
     try:
         if args.command == "run":
             profile = _load_profile_for_command(
+                config=config,
                 profile=args.profile,
                 preset=args.preset,
                 artifacts_root=args.artifacts_root,
@@ -161,6 +188,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_id=args.run_id,
                 resume=args.resume,
             )
+            if args.output:
+                output_path = _copy_final_outputs(
+                    artifacts_root=profile.artifacts.root,
+                    run_id=str(state["run_id"]),
+                    output_path=args.output,
+                )
+                print(f"final outputs copied to: {output_path}", file=sys.stderr)
             print(json.dumps(state, indent=2, sort_keys=True))
             _print_map_telemetry_summary(
                 profile_root=profile.artifacts.root, state=state
@@ -169,6 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "status":
             profile = _load_profile_for_command(
+                config=config,
                 profile=args.profile,
                 preset=args.preset,
                 artifacts_root=args.artifacts_root,
@@ -183,6 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.command == "doctor":
             profile = _load_profile_for_command(
+                config=config,
                 profile=args.profile,
                 preset=args.preset,
                 artifacts_root=args.artifacts_root,
@@ -276,8 +312,24 @@ def _print_map_telemetry_summary(*, profile_root: Path, state: dict[str, Any]) -
     print(f"map manifest: {manifest_path}", file=sys.stderr)
 
 
+def _copy_final_outputs(*, artifacts_root: Path, run_id: str, output_path: str) -> Path:
+    source_dir = artifacts_root.expanduser().resolve() / run_id / "final"
+    if not source_dir.exists() or not source_dir.is_dir():
+        raise PipelineError(f"Final output directory not found: {source_dir}")
+
+    destination = Path(output_path).expanduser().resolve()
+    if destination.exists() and not destination.is_dir():
+        raise PipelineError(
+            f"--output destination must be a directory path: {destination}"
+        )
+
+    shutil.copytree(source_dir, destination, dirs_exist_ok=True)
+    return destination
+
+
 def _load_profile_for_command(
     *,
+    config: ScribaConfig,
     profile: str | None,
     preset: str | None,
     artifacts_root: str | None,
@@ -285,47 +337,60 @@ def _load_profile_for_command(
     ocr_model: str | None,
     enforce_model_backend: bool,
 ) -> PipelineProfile:
+    default_artifacts_root = config.artifacts_root
+
     if profile:
         loaded = load_profile(profile)
+        default_artifacts_root = None
+    elif not enforce_model_backend:
+        loaded = _build_passthrough_profile(
+            source_label=preset or config.preset or "auto"
+        )
     else:
         loaded = _load_preset_profile(
-            preset=(preset or "auto"),
+            config=config,
+            preset=(preset or config.preset or "auto"),
             enforce_model_backend=enforce_model_backend,
         )
 
     return _apply_profile_overrides(
         loaded,
         artifacts_root=artifacts_root,
+        default_artifacts_root=default_artifacts_root,
         text_model=text_model,
         ocr_model=ocr_model,
     )
 
 
 def _load_preset_profile(
-    *, preset: str, enforce_model_backend: bool
+    *, config: ScribaConfig, preset: str, enforce_model_backend: bool
 ) -> PipelineProfile:
     if preset == "passthrough":
-        return load_profile(
-            _resolve_repo_profile_path("profiles/pipeline.profile.example.yaml")
-        )
+        return _build_passthrough_profile(source_label="passthrough")
 
     if preset == "auto":
-        selected = _auto_select_provider_preset()
+        selected = _auto_select_provider_preset(config=config)
         if selected is None:
             if enforce_model_backend:
                 raise ProfileError(_missing_provider_error_message())
-            return load_profile(
-                _resolve_repo_profile_path("profiles/pipeline.profile.example.yaml")
-            )
-        return _build_remote_preset_profile(selected, source_label="auto")
+            return _build_passthrough_profile(source_label="auto")
+        return _build_remote_preset_profile(
+            config=config,
+            preset=selected,
+            source_label="auto",
+        )
 
     if preset in PRESET_PROVIDER_CONFIG:
-        return _build_remote_preset_profile(preset, source_label=preset)
+        return _build_remote_preset_profile(
+            config=config,
+            preset=preset,
+            source_label=preset,
+        )
 
     raise ProfileError(f"Unknown preset: {preset}")
 
 
-def _auto_select_provider_preset() -> str | None:
+def _auto_select_provider_preset(*, config: ScribaConfig) -> str | None:
     forced_provider = os.getenv("SCRIBA_PROVIDER", "").strip().lower()
     if forced_provider:
         if forced_provider not in PRESET_PROVIDER_CONFIG:
@@ -335,9 +400,9 @@ def _auto_select_provider_preset() -> str | None:
             )
         return forced_provider
 
-    for candidate in AUTO_PRESET_PRIORITY:
-        config = PRESET_PROVIDER_CONFIG[candidate]
-        env_key = config["env_key"]
+    for candidate in config.provider_priority:
+        provider_config = PRESET_PROVIDER_CONFIG[candidate]
+        env_key = provider_config["env_key"]
         if os.getenv(env_key, "").strip():
             return candidate
     return None
@@ -354,23 +419,158 @@ def _missing_provider_error_message() -> str:
     )
 
 
-def _build_remote_preset_profile(preset: str, *, source_label: str) -> PipelineProfile:
-    config = PRESET_PROVIDER_CONFIG.get(preset)
-    if config is None:
+def _load_scriba_config() -> ScribaConfig:
+    config_path = _scriba_home() / "config.yaml"
+    if not config_path.exists() or not config_path.is_file():
+        return ScribaConfig()
+
+    try:
+        raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ProfileError(f"Invalid scriba config YAML: {config_path}") from exc
+
+    if raw is None:
+        return ScribaConfig()
+    if not isinstance(raw, dict):
+        raise ProfileError("scriba config must be a YAML mapping")
+
+    defaults_raw = raw.get("defaults", {})
+    models_raw = raw.get("models", {})
+    if not isinstance(defaults_raw, dict):
+        raise ProfileError("scriba config 'defaults' must be a mapping")
+    if not isinstance(models_raw, dict):
+        raise ProfileError("scriba config 'models' must be a mapping")
+
+    preset = defaults_raw.get("preset")
+    if preset is not None and preset not in PRESET_CHOICES:
+        allowed = ", ".join(sorted(PRESET_CHOICES))
+        raise ProfileError(
+            f"scriba config default preset must be one of: {allowed}. Got: {preset}"
+        )
+
+    artifacts_root_raw = defaults_raw.get("artifacts_root")
+    artifacts_root = (
+        Path(str(artifacts_root_raw)).expanduser()
+        if artifacts_root_raw not in {None, ""}
+        else None
+    )
+
+    provider_priority_raw = defaults_raw.get("provider_priority")
+    provider_priority = _parse_provider_priority(provider_priority_raw)
+    provider_models = _parse_provider_models(models_raw)
+
+    return ScribaConfig(
+        preset=str(preset) if isinstance(preset, str) else None,
+        artifacts_root=artifacts_root,
+        provider_priority=provider_priority,
+        provider_models=provider_models,
+    )
+
+
+def _parse_provider_priority(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return AUTO_PRESET_PRIORITY
+    if not isinstance(value, list):
+        raise ProfileError("scriba config defaults.provider_priority must be a list")
+
+    priority: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ProfileError(
+                "scriba config defaults.provider_priority entries must be strings"
+            )
+        provider = item.strip().lower()
+        if provider not in PRESET_PROVIDER_CONFIG:
+            allowed = ", ".join(sorted(PRESET_PROVIDER_CONFIG.keys()))
+            raise ProfileError(
+                "scriba config defaults.provider_priority contains unsupported "
+                f"provider '{provider}'. Allowed: {allowed}"
+            )
+        if provider not in priority:
+            priority.append(provider)
+
+    return tuple(priority) if priority else AUTO_PRESET_PRIORITY
+
+
+def _parse_provider_models(value: dict[str, Any]) -> dict[str, str]:
+    models: dict[str, str] = {}
+    for provider, raw_model in value.items():
+        if not isinstance(provider, str) or not isinstance(raw_model, str):
+            raise ProfileError(
+                "scriba config models entries must map strings to strings"
+            )
+        provider_key = provider.strip().lower()
+        if provider_key not in PRESET_PROVIDER_CONFIG:
+            allowed = ", ".join(sorted(PRESET_PROVIDER_CONFIG.keys()))
+            raise ProfileError(
+                f"scriba config models contains unsupported provider '{provider_key}'. Allowed: {allowed}"
+            )
+        model = raw_model.strip()
+        if not model:
+            raise ProfileError(
+                f"scriba config model for provider '{provider_key}' cannot be empty"
+            )
+        models[provider_key] = model
+    return models
+
+
+def _build_passthrough_profile(*, source_label: str) -> PipelineProfile:
+    return PipelineProfile(
+        version=1,
+        artifacts=ArtifactsConfig(root=_default_artifacts_root(), run_id="auto"),
+        roles={},
+        backends={},
+        stages=_default_stages_for_passthrough(),
+        source_path=Path(f"<preset:{source_label}:passthrough>"),
+    )
+
+
+def _default_stages_for_passthrough() -> dict[str, StageConfig]:
+    stages = {stage_name: StageConfig() for stage_name in DEFAULT_STAGE_ORDER}
+    for stage_name, overrides in DEFAULT_PASSTHROUGH_STAGE_CONFIG.items():
+        stages[stage_name] = replace(stages[stage_name], **overrides)
+    return stages
+
+
+def _resolve_provider_model(*, config: ScribaConfig, preset: str) -> str:
+    if config.provider_models and preset in config.provider_models:
+        return config.provider_models[preset]
+    return PRESET_PROVIDER_CONFIG[preset]["default_model"]
+
+
+def _default_artifacts_root() -> Path:
+    return _scriba_home() / "artifacts"
+
+
+def _scriba_home() -> Path:
+    configured = os.getenv("SCRIBA_HOME", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".scriba"
+
+
+def _build_remote_preset_profile(
+    *,
+    config: ScribaConfig,
+    preset: str,
+    source_label: str,
+) -> PipelineProfile:
+    provider_config = PRESET_PROVIDER_CONFIG.get(preset)
+    if provider_config is None:
         raise ProfileError(f"Unknown preset: {preset}")
 
-    env_key = config["env_key"]
+    env_key = provider_config["env_key"]
     api_key = os.getenv(env_key, "").strip()
     if not api_key:
         raise ProfileError(
             f"Preset '{preset}' requires environment variable '{env_key}' to be set."
         )
 
-    provider = config["provider"]
-    model = config["default_model"]
+    provider = provider_config["provider"]
+    model = _resolve_provider_model(config=config, preset=preset)
     return PipelineProfile(
         version=1,
-        artifacts=ArtifactsConfig(root=Path("./artifacts"), run_id="auto"),
+        artifacts=ArtifactsConfig(root=_default_artifacts_root(), run_id="auto"),
         roles={
             "normalize_text": RoleBinding(
                 backend="remote_text",
@@ -410,37 +610,28 @@ def _default_stages_for_preset() -> dict[str, StageConfig]:
     return stages
 
 
-def _resolve_repo_profile_path(rel: str) -> str:
-    candidate_cwd = Path(rel)
-    if candidate_cwd.exists() and candidate_cwd.is_file():
-        return str(candidate_cwd)
-
-    candidate_repo = _repo_root() / rel
-    if candidate_repo.exists() and candidate_repo.is_file():
-        return str(candidate_repo)
-
-    raise ProfileError(f"Preset profile not found: expected {rel}")
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def _apply_profile_overrides(
     profile: PipelineProfile,
     *,
     artifacts_root: str | None,
+    default_artifacts_root: Path | None,
     text_model: str | None,
     ocr_model: str | None,
 ) -> PipelineProfile:
     updated = profile
 
+    target_artifacts_root: Path | None = None
     if artifacts_root:
+        target_artifacts_root = Path(artifacts_root).expanduser()
+    elif default_artifacts_root is not None:
+        target_artifacts_root = default_artifacts_root.expanduser()
+
+    if target_artifacts_root is not None:
         updated = replace(
             updated,
             artifacts=replace(
                 updated.artifacts,
-                root=Path(artifacts_root).expanduser(),
+                root=target_artifacts_root,
             ),
         )
 
