@@ -11,16 +11,18 @@ resumable artifacts, and profile-driven backend control.
 - Runs a deterministic stage pipeline on local inputs:
   - `extract -> clean -> sectionize -> normalize_map -> reduce -> validate -> export`
 - Supports local, remote, and hybrid model backends through YAML profiles.
-- Writes complete run artifacts under `artifacts/<run_id>/...` for auditing and resume.
+- Writes complete run artifacts under `~/.scriba/artifacts/<run_id>/...` by default for auditing and resume.
 - Exposes simple CLI commands for run/status/doctor checks.
 
 ## Install
+
+For source-tree development:
 
 ```bash
 uv sync --group dev
 ```
 
-Install as a CLI tool:
+Install as a local CLI tool:
 
 ```bash
 uv tool install .
@@ -33,6 +35,12 @@ Run on a sample markdown fixture:
 ```bash
 uv run scriba run \
   --input samples/docs/mini_api.md
+```
+
+For an installed tool, the equivalent command is just:
+
+```bash
+scriba run --input /path/to/file.pdf
 ```
 
 By default, `scriba` uses the built-in `auto` preset when neither `--profile`
@@ -167,7 +175,7 @@ Useful runtime controls:
 ## Reliability notes
 
 - Use explicit `--run-id` for long jobs so reruns can safely `--resume`.
-- Review run artifacts in `artifacts/<run_id>/` (map telemetry, validation report, final markdown).
+- Review run artifacts in `~/.scriba/artifacts/<run_id>/` by default (map telemetry, validation report, final markdown).
 - Keep profile config as the source of truth for backend behavior (timeouts, workers, output limits).
 
 ## Large-document preflight
@@ -193,6 +201,8 @@ required for normal usage.
 ## Contributing
 
 See `CONTRIBUTING.md` for branch strategy, PR flow, and merge expectations.
+See `RELEASING.md` for the release checklist and PyPI publish flow.
+Basic GitHub Actions CI now validates tests, packaging, and installed-wheel smoke checks.
 
 ## License
 
