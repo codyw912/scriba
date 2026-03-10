@@ -16,6 +16,13 @@ def _write_profile(tmp_path: Path) -> Path:
     return profile_path
 
 
+def _write_scriba_config(home: Path, content: str) -> Path:
+    config_path = home / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(content, encoding="utf-8")
+    return config_path
+
+
 def test_cli_doctor(tmp_path: Path, capsys) -> None:
     profile = _write_profile(tmp_path)
     input_file = tmp_path / "sample.md"
@@ -143,6 +150,36 @@ def test_cli_run_with_passthrough_preset_and_artifacts_override(
     assert '"run_id": "run-preset"' in capsys.readouterr().out
 
 
+def test_cli_run_passthrough_uses_runtime_native_home(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    scriba_home = tmp_path / "home"
+    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
+    run_id = "run-home-default"
+
+    run_code = main(
+        [
+            "run",
+            "--preset",
+            "passthrough",
+            "--input",
+            str(input_file),
+            "--run-id",
+            run_id,
+        ]
+    )
+
+    assert run_code == 0
+    state_path = scriba_home / "artifacts" / run_id / "state.json"
+    assert state_path.exists()
+    assert '"run_id": "run-home-default"' in capsys.readouterr().out
+
+
 def test_cli_run_defaults_to_auto_preset_requires_provider_key(
     tmp_path: Path,
     capsys,
@@ -212,6 +249,157 @@ def test_cli_run_defaults_to_auto_preset_with_openrouter_key(
 
     assert run_code == 0
     assert f'"run_id": "{run_id}"' in capsys.readouterr().out
+
+
+def test_cli_uses_config_default_preset_and_model(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    scriba_home = tmp_path / "home"
+    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-token")
+    _write_scriba_config(
+        scriba_home,
+        "\n".join(
+            [
+                "version: 1",
+                "defaults:",
+                "  preset: openrouter",
+                "models:",
+                "  openrouter: openrouter/custom-model",
+                "",
+            ]
+        ),
+    )
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
+
+    captured_model: dict[str, str] = {}
+
+    def _capture_completion(**kwargs):  # type: ignore[no-untyped-def]
+        captured_model["model"] = str(kwargs["model"])
+        return {
+            "choices": [{"message": {"content": "# Doc\n\nGET /v1/ping\n"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+
+    with (
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            return_value=(True, "ok"),
+        ),
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            side_effect=_capture_completion,
+        ),
+    ):
+        run_code = main(
+            ["run", "--input", str(input_file), "--run-id", "run-config-model"]
+        )
+
+    assert run_code == 0
+    assert captured_model["model"] == "openrouter/custom-model"
+    assert '"run_id": "run-config-model"' in capsys.readouterr().out
+
+
+def test_cli_status_uses_config_artifacts_root_without_provider_key(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    scriba_home = tmp_path / "home"
+    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    artifacts_root = tmp_path / "shared-artifacts"
+    _write_scriba_config(
+        scriba_home,
+        "\n".join(
+            [
+                "version: 1",
+                "defaults:",
+                f"  artifacts_root: {artifacts_root}",
+                "",
+            ]
+        ),
+    )
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
+    run_id = "run-config-artifacts"
+
+    run_code = main(
+        [
+            "run",
+            "--preset",
+            "passthrough",
+            "--input",
+            str(input_file),
+            "--run-id",
+            run_id,
+        ]
+    )
+    assert run_code == 0
+    capsys.readouterr()
+
+    status_code = main(["status", "--run-id", run_id])
+
+    assert status_code == 0
+    assert f'"run_id": "{run_id}"' in capsys.readouterr().out
+
+
+def test_cli_config_provider_priority_controls_auto_selection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    scriba_home = tmp_path / "home"
+    monkeypatch.setenv("SCRIBA_HOME", str(scriba_home))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-token")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-token")
+    _write_scriba_config(
+        scriba_home,
+        "\n".join(
+            [
+                "version: 1",
+                "defaults:",
+                "  provider_priority:",
+                "    - openai",
+                "    - openrouter",
+                "",
+            ]
+        ),
+    )
+
+    input_file = tmp_path / "sample.md"
+    input_file.write_text("# Doc\n\nGET /v1/ping\n", encoding="utf-8")
+
+    captured_model: dict[str, str] = {}
+
+    def _capture_completion(**kwargs):  # type: ignore[no-untyped-def]
+        captured_model["model"] = str(kwargs["model"])
+        return {
+            "choices": [{"message": {"content": "# Doc\n\nGET /v1/ping\n"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+
+    with (
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter._probe_health",
+            return_value=(True, "ok"),
+        ),
+        patch(
+            "scriba.pipeline.backends.adapters.litellm_adapter.litellm_completion",
+            side_effect=_capture_completion,
+        ),
+    ):
+        run_code = main(["run", "--input", str(input_file), "--run-id", "run-priority"])
+
+    assert run_code == 0
+    assert captured_model["model"] == "openai/gpt-4o-mini"
 
 
 def test_cli_text_model_override_requires_normalize_role(
