@@ -247,6 +247,69 @@ def main() -> int:
                             key="content_f1",
                         )
                     ),
+                    "char_error_rate": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="char_error_rate",
+                        )
+                    ),
+                    "word_error_rate": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="word_error_rate",
+                        )
+                    ),
+                    "code_block_integrity_score": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="code_block_integrity_score",
+                        )
+                    ),
+                    "table_retention_score": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="table_retention_score",
+                        )
+                    ),
+                    "hallucination_rate": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="hallucination_rate",
+                        )
+                    ),
+                    "hallucinated_endpoint_count": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="hallucinated_endpoint_count",
+                        )
+                    ),
+                    "hallucinated_heading_count": (
+                        None
+                        if not run_id
+                        else _quality_metric(
+                            artifacts_root=artifacts_root,
+                            run_id=run_id,
+                            key="hallucinated_heading_count",
+                        )
+                    ),
                     "contract_recall": (
                         None
                         if not run_id
@@ -954,6 +1017,11 @@ def main() -> int:
                     "source_kind": source_kind,
                     "rows": 0,
                     "quality_values": [],
+                    "char_error_values": [],
+                    "word_error_values": [],
+                    "code_block_values": [],
+                    "table_values": [],
+                    "hallucination_values": [],
                     "contract_values": [],
                     "hard_error_runs": 0,
                 },
@@ -969,6 +1037,31 @@ def main() -> int:
                 contract_values = bucket["contract_values"]
                 assert isinstance(contract_values, list)
                 contract_values.append(float(contract_recall))
+            char_error_rate = row.get("char_error_rate")
+            if isinstance(char_error_rate, (int, float)):
+                char_error_values = bucket["char_error_values"]
+                assert isinstance(char_error_values, list)
+                char_error_values.append(float(char_error_rate))
+            word_error_rate = row.get("word_error_rate")
+            if isinstance(word_error_rate, (int, float)):
+                word_error_values = bucket["word_error_values"]
+                assert isinstance(word_error_values, list)
+                word_error_values.append(float(word_error_rate))
+            code_block_integrity = row.get("code_block_integrity_score")
+            if isinstance(code_block_integrity, (int, float)):
+                code_block_values = bucket["code_block_values"]
+                assert isinstance(code_block_values, list)
+                code_block_values.append(float(code_block_integrity))
+            table_retention = row.get("table_retention_score")
+            if isinstance(table_retention, (int, float)):
+                table_values = bucket["table_values"]
+                assert isinstance(table_values, list)
+                table_values.append(float(table_retention))
+            hallucination_rate = row.get("hallucination_rate")
+            if isinstance(hallucination_rate, (int, float)):
+                hallucination_values = bucket["hallucination_values"]
+                assert isinstance(hallucination_values, list)
+                hallucination_values.append(float(hallucination_rate))
             hard_errors = row.get("hard_errors")
             if isinstance(hard_errors, int) and hard_errors > 0:
                 bucket["hard_error_runs"] = int(bucket["hard_error_runs"]) + 1
@@ -977,18 +1070,53 @@ def main() -> int:
             [
                 "## Benchmark Lane Summary",
                 "",
-                "| lane | source_kind | rows | avg_quality | avg_contract_recall | hard_error_runs |",
-                "|---|---|---:|---:|---:|---:|",
+                "| lane | source_kind | rows | avg_quality | avg_char_er | avg_word_er | avg_code_integrity | avg_table_retention | avg_hallucination_rate | avg_contract_recall | hard_error_runs |",
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for (_, _), bucket in sorted(lane_summary.items()):
             quality_values = bucket["quality_values"]
             assert isinstance(quality_values, list)
+            char_error_values = bucket["char_error_values"]
+            assert isinstance(char_error_values, list)
+            word_error_values = bucket["word_error_values"]
+            assert isinstance(word_error_values, list)
+            code_block_values = bucket["code_block_values"]
+            assert isinstance(code_block_values, list)
+            table_values = bucket["table_values"]
+            assert isinstance(table_values, list)
+            hallucination_values = bucket["hallucination_values"]
+            assert isinstance(hallucination_values, list)
             contract_values = bucket["contract_values"]
             assert isinstance(contract_values, list)
             avg_quality = (
                 f"{sum(quality_values) / len(quality_values):.2f}"
                 if quality_values
+                else "n/a"
+            )
+            avg_char_error = (
+                f"{sum(char_error_values) / len(char_error_values):.3f}"
+                if char_error_values
+                else "n/a"
+            )
+            avg_word_error = (
+                f"{sum(word_error_values) / len(word_error_values):.3f}"
+                if word_error_values
+                else "n/a"
+            )
+            avg_code_block = (
+                f"{sum(code_block_values) / len(code_block_values):.3f}"
+                if code_block_values
+                else "n/a"
+            )
+            avg_table = (
+                f"{sum(table_values) / len(table_values):.3f}"
+                if table_values
+                else "n/a"
+            )
+            avg_hallucination = (
+                f"{sum(hallucination_values) / len(hallucination_values):.3f}"
+                if hallucination_values
                 else "n/a"
             )
             avg_contract = (
@@ -997,11 +1125,16 @@ def main() -> int:
                 else "n/a"
             )
             lines.append(
-                "| {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     _fmt(bucket["lane"]),
                     _fmt(bucket["source_kind"]),
                     _fmt(bucket["rows"]),
                     avg_quality,
+                    avg_char_error,
+                    avg_word_error,
+                    avg_code_block,
+                    avg_table,
+                    avg_hallucination,
                     avg_contract,
                     _fmt(bucket["hard_error_runs"]),
                 )
@@ -1012,6 +1145,11 @@ def main() -> int:
                     "source_kind": bucket["source_kind"],
                     "rows": bucket["rows"],
                     "avg_quality": avg_quality,
+                    "avg_char_error_rate": avg_char_error,
+                    "avg_word_error_rate": avg_word_error,
+                    "avg_code_block_integrity_score": avg_code_block,
+                    "avg_table_retention_score": avg_table,
+                    "avg_hallucination_rate": avg_hallucination,
                     "avg_contract_recall": avg_contract,
                     "hard_error_runs": bucket["hard_error_runs"],
                 }
@@ -1022,13 +1160,13 @@ def main() -> int:
                 "",
                 "## Benchmark Lane Rows",
                 "",
-                "| run_id | fixture_id | variant_id | variant_family | noise_level | source_kind | lane | size_bucket | doc_type | quality | endpoint_recall | heading_recall | contract_recall | contract_failures | hard_errors |",
-                "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|",
+                "| run_id | fixture_id | variant_id | variant_family | noise_level | source_kind | lane | size_bucket | doc_type | quality | char_er | word_er | code_integrity | table_retention | hallucination_rate | endpoint_recall | heading_recall | contract_recall | contract_failures | hard_errors |",
+                "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for row in benchmark_lane_rows:
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     _fmt(row.get("run_id")),
                     _fmt(row.get("fixture_id")),
                     _fmt(row.get("variant_id")),
@@ -1039,6 +1177,11 @@ def main() -> int:
                     _fmt(row.get("size_bucket")),
                     _fmt(row.get("doc_type")),
                     _fmt(row.get("quality_score")),
+                    _fmt(row.get("char_error_rate")),
+                    _fmt(row.get("word_error_rate")),
+                    _fmt(row.get("code_block_integrity_score")),
+                    _fmt(row.get("table_retention_score")),
+                    _fmt(row.get("hallucination_rate")),
                     _fmt(row.get("endpoint_recall")),
                     _fmt(row.get("heading_recall")),
                     _fmt(row.get("contract_recall")),
@@ -1053,15 +1196,15 @@ def main() -> int:
         [
             "## Per Run",
             "",
-            "| timestamp | campaign_id | preset | profile | adapter | topology | provider | input | fixture_id | variant_id | variant_family | noise_level | source_kind | run_id | status | processed | tok_s | visible_tok_s | latency_s | completion_tokens | output_tokens_est | completion_output_ratio | reasoning_heavy | speed_gate_ok | quality | base_quality | content_f1 | endpoint_recall | endpoint_precision | heading_recall | heading_precision | contract_recall | contract_failures | quality_gate_ok | source | doctor_warning_count | doctor_warning_preview | validation_ok | hard_errors | missing_endpoints |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---:|",
+            "| timestamp | campaign_id | preset | profile | adapter | topology | provider | input | fixture_id | variant_id | variant_family | noise_level | source_kind | run_id | status | processed | tok_s | visible_tok_s | latency_s | completion_tokens | output_tokens_est | completion_output_ratio | reasoning_heavy | speed_gate_ok | quality | base_quality | content_f1 | char_er | word_er | code_integrity | table_retention | hallucination_rate | endpoint_recall | endpoint_precision | heading_recall | heading_precision | contract_recall | contract_failures | quality_gate_ok | source | doctor_warning_count | doctor_warning_preview | validation_ok | hard_errors | missing_endpoints |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---:|",
         ]
     )
 
     if rows:
         for row in rows:
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     _fmt(row["timestamp"]),
                     _fmt(row["campaign_id"]),
                     _fmt(row["preset"]),
@@ -1089,6 +1232,11 @@ def main() -> int:
                     _fmt(row["quality_score"]),
                     _fmt(row.get("base_quality_score")),
                     _fmt(row.get("content_f1")),
+                    _fmt(row.get("char_error_rate")),
+                    _fmt(row.get("word_error_rate")),
+                    _fmt(row.get("code_block_integrity_score")),
+                    _fmt(row.get("table_retention_score")),
+                    _fmt(row.get("hallucination_rate")),
                     _fmt(row["endpoint_recall"]),
                     _fmt(row.get("endpoint_precision")),
                     _fmt(row["heading_recall"]),
@@ -1106,7 +1254,7 @@ def main() -> int:
             )
     else:
         lines.append(
-            "| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |"
+            "| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |"
         )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1395,6 +1543,9 @@ def _quality_snapshot_from_paths(
     source_text = source_path.read_text(encoding="utf-8")
     output_text = output_path.read_text(encoding="utf-8")
 
+    normalized_source_text = _normalize_ocr_compare_text(source_text)
+    normalized_output_text = _normalize_ocr_compare_text(output_text)
+
     endpoint_recall = _recall_ratio(
         source=_extract_endpoints(source_text),
         output=_extract_endpoints(output_text),
@@ -1427,6 +1578,37 @@ def _quality_snapshot_from_paths(
     length_ratio = (output_chars / source_chars) if source_chars > 0 else 1.0
     length_score = _length_ratio_score(length_ratio)
 
+    char_error_rate = _error_rate(
+        source_tokens=list(normalized_source_text),
+        output_tokens=list(normalized_output_text),
+    )
+    word_error_rate = _error_rate(
+        source_tokens=normalized_source_text.split(),
+        output_tokens=normalized_output_text.split(),
+    )
+    code_block_integrity_score = _structure_recall(
+        source=_extract_fenced_code_blocks(source_text),
+        output=_extract_fenced_code_blocks(output_text),
+    )
+    table_retention_score = _structure_recall(
+        source=_extract_markdown_tables(source_text),
+        output=_extract_markdown_tables(output_text),
+    )
+
+    source_endpoints = _extract_endpoints(source_text)
+    output_endpoints = _extract_endpoints(output_text)
+    source_headings = _extract_headings(source_text)
+    output_headings = _extract_headings(output_text)
+    hallucinated_endpoint_count = len(output_endpoints - source_endpoints)
+    hallucinated_heading_count = len(output_headings - source_headings)
+    hallucination_denominator = len(output_endpoints) + len(output_headings)
+    hallucination_rate = (
+        (hallucinated_endpoint_count + hallucinated_heading_count)
+        / hallucination_denominator
+        if hallucination_denominator > 0
+        else 0.0
+    )
+
     weighted = (
         0.45 * endpoint_recall
         + 0.20 * heading_recall
@@ -1453,6 +1635,19 @@ def _quality_snapshot_from_paths(
         "path_recall": round(path_recall, 3),
         "number_recall": round(number_recall, 3),
         "length_ratio": round(length_ratio, 3),
+        "char_error_rate": round(char_error_rate, 3),
+        "word_error_rate": round(word_error_rate, 3),
+        "code_block_integrity_score": (
+            None
+            if code_block_integrity_score is None
+            else round(code_block_integrity_score, 3)
+        ),
+        "table_retention_score": (
+            None if table_retention_score is None else round(table_retention_score, 3)
+        ),
+        "hallucination_rate": round(hallucination_rate, 3),
+        "hallucinated_endpoint_count": hallucinated_endpoint_count,
+        "hallucinated_heading_count": hallucinated_heading_count,
     }
     _ADHOC_QUALITY_CACHE[cache_key] = snapshot
     return snapshot
@@ -1472,6 +1667,13 @@ def _empty_quality_snapshot() -> dict[str, object]:
         "path_recall": None,
         "number_recall": None,
         "length_ratio": None,
+        "char_error_rate": None,
+        "word_error_rate": None,
+        "code_block_integrity_score": None,
+        "table_retention_score": None,
+        "hallucination_rate": None,
+        "hallucinated_endpoint_count": None,
+        "hallucinated_heading_count": None,
     }
 
 
@@ -1508,6 +1710,95 @@ def _extract_paths(markdown: str) -> set[str]:
 
 def _extract_numbers(markdown: str) -> set[str]:
     return set(re.findall(r"\b\d+(?:[._-]\d+)*\b", markdown))
+
+
+def _extract_fenced_code_blocks(markdown: str) -> set[str]:
+    pattern = re.compile(r"^```[^\n]*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
+    blocks: set[str] = set()
+    for match in pattern.finditer(markdown):
+        block = _normalize_structure_block(match.group(1))
+        if block:
+            blocks.add(block)
+    return blocks
+
+
+def _extract_markdown_tables(markdown: str) -> set[str]:
+    lines = markdown.splitlines()
+    tables: set[str] = set()
+    idx = 0
+    while idx < len(lines) - 1:
+        header = lines[idx]
+        separator = lines[idx + 1]
+        if _looks_like_markdown_table_header(header, separator):
+            block_lines = [header, separator]
+            idx += 2
+            while idx < len(lines) and lines[idx].count("|") >= 2:
+                block_lines.append(lines[idx])
+                idx += 1
+            table = _normalize_structure_block("\n".join(block_lines))
+            if table:
+                tables.add(table)
+            continue
+        idx += 1
+    return tables
+
+
+def _looks_like_markdown_table_header(header: str, separator: str) -> bool:
+    if header.count("|") < 2:
+        return False
+    normalized = separator.strip()
+    if not normalized:
+        return False
+    return bool(
+        re.fullmatch(r"\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?", normalized)
+    )
+
+
+def _normalize_structure_block(value: str) -> str:
+    lines = [re.sub(r"\s+", " ", line.strip()) for line in value.splitlines()]
+    lines = [line for line in lines if line]
+    return "\n".join(lines).strip()
+
+
+def _normalize_ocr_compare_text(value: str) -> str:
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def _error_rate(*, source_tokens: list[str], output_tokens: list[str]) -> float:
+    if not source_tokens:
+        return 0.0 if not output_tokens else 1.0
+    distance = _levenshtein_distance(source_tokens, output_tokens)
+    return distance / len(source_tokens)
+
+
+def _levenshtein_distance(source: list[str], target: list[str]) -> int:
+    if not source:
+        return len(target)
+    if not target:
+        return len(source)
+
+    previous = list(range(len(target) + 1))
+    for source_index, source_token in enumerate(source, start=1):
+        current = [source_index]
+        for target_index, target_token in enumerate(target, start=1):
+            substitution_cost = 0 if source_token == target_token else 1
+            current.append(
+                min(
+                    previous[target_index] + 1,
+                    current[target_index - 1] + 1,
+                    previous[target_index - 1] + substitution_cost,
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def _structure_recall(*, source: set[str], output: set[str]) -> float | None:
+    if not source:
+        return None
+    return len(source & output) / len(source)
 
 
 def _contract_metric(
@@ -1887,6 +2178,13 @@ def _benchmark_lane_rows_for_run(
                 "path_recall": None,
                 "number_recall": None,
                 "length_ratio": None,
+                "char_error_rate": None,
+                "word_error_rate": None,
+                "code_block_integrity_score": None,
+                "table_retention_score": None,
+                "hallucination_rate": None,
+                "hallucinated_endpoint_count": None,
+                "hallucinated_heading_count": None,
                 **contract_snapshot,
             }
         )
@@ -1908,6 +2206,13 @@ def _benchmark_lane_rows_for_run(
                 "path_recall": None,
                 "number_recall": None,
                 "length_ratio": None,
+                "char_error_rate": None,
+                "word_error_rate": None,
+                "code_block_integrity_score": None,
+                "table_retention_score": None,
+                "hallucination_rate": None,
+                "hallucinated_endpoint_count": None,
+                "hallucinated_heading_count": None,
                 "contract_recall": None,
                 "contract_failures": None,
                 "contract_checks": None,

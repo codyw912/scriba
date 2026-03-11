@@ -163,6 +163,13 @@ Optional quality/speed diagnostics columns:
 
 - `base_quality`
 - `content_f1`
+- `char_error_rate`
+- `word_error_rate`
+- `code_block_integrity_score`
+- `table_retention_score`
+- `hallucination_rate`
+- `hallucinated_endpoint_count`
+- `hallucinated_heading_count`
 - `endpoint_precision`
 - `heading_precision`
 - `quality_gate_ok`
@@ -212,6 +219,13 @@ Per-row optional quality fields:
 
 - `quality_score` (float `0-100`)
 - `quality_tier` (`excellent`, `good`, `fair`, `poor`)
+- `char_error_rate` (float `0+`, lower is better)
+- `word_error_rate` (float `0+`, lower is better)
+- `code_block_integrity_score` (float `0-1` or null)
+- `table_retention_score` (float `0-1` or null)
+- `hallucination_rate` (float `0-1`)
+- `hallucinated_endpoint_count` (int)
+- `hallucinated_heading_count` (int)
 - `endpoint_recall` (float `0-1`)
 - `heading_recall` (float `0-1`)
 - `contract_recall` (float `0-1` when fixture contract exists)

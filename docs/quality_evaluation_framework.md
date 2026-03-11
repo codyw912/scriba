@@ -91,6 +91,11 @@ Per-run table now also includes:
 
 - `base_quality` (before contract blending)
 - `content_f1`
+- `char_error_rate`
+- `word_error_rate`
+- `code_block_integrity_score`
+- `table_retention_score`
+- `hallucination_rate`
 - `endpoint_precision`
 - `heading_precision`
 - `quality_gate_ok`

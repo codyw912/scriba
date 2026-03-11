@@ -7,6 +7,8 @@ from pathlib import Path
 import runpy
 from typing import Any, Callable, cast
 
+import pytest
+
 
 def _load_report_module() -> dict[str, object]:
     return runpy.run_path(
@@ -128,3 +130,89 @@ def test_benchmark_lane_rows_expand_for_synthetic_run(tmp_path: Path) -> None:
 
     lanes = {row["lane"] for row in lane_rows}
     assert lanes == {"ocr_lane", "full_pipeline_lane", "contract_lane"}
+
+
+def test_quality_snapshot_includes_ocr_metrics(tmp_path: Path) -> None:
+    module = _load_report_module()
+    quality_snapshot_from_paths = cast(
+        Callable[..., dict[str, Any]],
+        module["_quality_snapshot_from_paths"],
+    )
+
+    source_path = tmp_path / "source.md"
+    output_path = tmp_path / "output.md"
+    source_path.write_text(
+        "\n".join(
+            [
+                "# Sample",
+                "",
+                "GET /v1/ping",
+                "",
+                "```python",
+                "print('ok')",
+                "```",
+                "",
+                "| name | value |",
+                "| --- | --- |",
+                "| ping | ok |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_path.write_text(
+        "\n".join(
+            [
+                "# Sample",
+                "",
+                "GET /v1/ping",
+                "",
+                "## Extra Heading",
+                "",
+                "```python",
+                "print('ok')",
+                "```",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = quality_snapshot_from_paths(
+        source_path=source_path,
+        output_path=output_path,
+        hard_error_count=0,
+    )
+
+    assert snapshot["char_error_rate"] > 0
+    assert snapshot["word_error_rate"] > 0
+    assert snapshot["code_block_integrity_score"] == 1.0
+    assert snapshot["table_retention_score"] == 0.0
+    assert snapshot["hallucination_rate"] > 0
+    assert snapshot["hallucinated_heading_count"] == 1
+    assert snapshot["hallucinated_endpoint_count"] == 0
+
+
+def test_quality_snapshot_uses_none_for_missing_structures(tmp_path: Path) -> None:
+    module = _load_report_module()
+    quality_snapshot_from_paths = cast(
+        Callable[..., dict[str, Any]],
+        module["_quality_snapshot_from_paths"],
+    )
+
+    source_path = tmp_path / "source.md"
+    output_path = tmp_path / "output.md"
+    source_path.write_text("# Sample\n\nGET /v1/ping\n", encoding="utf-8")
+    output_path.write_text("# Sample\n\nGET /v1/ping\n", encoding="utf-8")
+
+    snapshot = quality_snapshot_from_paths(
+        source_path=source_path,
+        output_path=output_path,
+        hard_error_count=0,
+    )
+
+    assert snapshot["char_error_rate"] == pytest.approx(0.0)
+    assert snapshot["word_error_rate"] == pytest.approx(0.0)
+    assert snapshot["code_block_integrity_score"] is None
+    assert snapshot["table_retention_score"] is None
+    assert snapshot["hallucination_rate"] == pytest.approx(0.0)
