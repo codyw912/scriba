@@ -201,6 +201,7 @@ required for normal usage.
 
 - Sample benchmark command index: `samples/README.md`
 - Benchmark schema: `docs/benchmark_schema.md`
+- Benchmark repo boundary: `docs/benchmark_repository_boundary.md`
 - Quality framework: `docs/quality_evaluation_framework.md`
 - Synthetic benchmark spec: `docs/benchmark_spec_v1.md`
 

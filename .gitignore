@@ -9,6 +9,12 @@ __pycache__/
 artifacts/
 samples/pdfs/downloads/
 samples/openrouter_models.json
+samples/quick_runs.md
+samples/quick_telemetry.md
+samples/matrix_runs.jsonl
+samples/matrix_runs.smoke.jsonl
+samples/matrix_report.md
+samples/matrix_report.json
 samples/hosted_pareto.md
 samples/model_selection/
 

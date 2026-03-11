@@ -10,6 +10,7 @@ import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from scribai.pipeline import load_profile, run_doctor
 
@@ -80,11 +81,13 @@ def main() -> int:
     _load_env_file(env_file_path)
 
     rows: list[dict[str, object]] = []
+    benchmark_lane_rows: list[dict[str, object]] = []
     profile_summary: dict[str, dict[str, object]] = {}
     campaign_summary: dict[str, dict[str, object]] = {}
     campaign_profile_tok: dict[str, dict[str, list[float]]] = {}
     profile_context_cache: dict[str, dict[str, object]] = {}
     doctor_snapshot_cache: dict[tuple[str, str], dict[str, object]] = {}
+    benchmark_lane_summary_rows: list[dict[str, object]] = []
     if matrix_path.exists() and matrix_path.is_file():
         for line in matrix_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -101,6 +104,7 @@ def main() -> int:
                 profile_ref=profile_ref,
                 cache=profile_context_cache,
             )
+            benchmark_context = _benchmark_context(input_ref=input_ref)
             doctor_snapshot = _doctor_snapshot(
                 profile_ref=profile_ref,
                 input_ref=input_ref,
@@ -134,6 +138,16 @@ def main() -> int:
                     "provider": profile_context.get("provider"),
                     "input": Path(input_ref).name,
                     "input_ref": input_ref,
+                    "fixture_id": benchmark_context.get("fixture_id"),
+                    "variant_id": benchmark_context.get("variant_id"),
+                    "variant_family": benchmark_context.get("variant_family"),
+                    "noise_level": benchmark_context.get("noise_level"),
+                    "source_kind": benchmark_context.get("source_kind"),
+                    "size_bucket": benchmark_context.get("size_bucket"),
+                    "doc_type": benchmark_context.get("doc_type"),
+                    "benchmark_root": benchmark_context.get("benchmark_root"),
+                    "gold_markdown_path": benchmark_context.get("gold_markdown_path"),
+                    "gold_contract_path": benchmark_context.get("gold_contract_path"),
                     "run_id": run_id,
                     "status": status,
                     "tok_s": telemetry.get("effective_tokens_per_second"),
@@ -256,6 +270,12 @@ def main() -> int:
                 }
             )
             latest_row = rows[-1]
+            benchmark_lane_rows.extend(
+                _benchmark_lane_rows_for_run(
+                    row=latest_row,
+                    artifacts_root=artifacts_root,
+                )
+            )
 
             base_quality = latest_row.get("base_quality_score")
             contract_recall = latest_row.get("contract_recall")
@@ -921,19 +941,127 @@ def main() -> int:
 
         lines.append("")
 
+    if benchmark_lane_rows:
+        lane_summary: dict[tuple[str, str], dict[str, object]] = {}
+        for row in benchmark_lane_rows:
+            lane = str(row.get("lane", ""))
+            source_kind = str(row.get("source_kind", ""))
+            key = (lane, source_kind)
+            bucket = lane_summary.setdefault(
+                key,
+                {
+                    "lane": lane,
+                    "source_kind": source_kind,
+                    "rows": 0,
+                    "quality_values": [],
+                    "contract_values": [],
+                    "hard_error_runs": 0,
+                },
+            )
+            bucket["rows"] = int(bucket["rows"]) + 1
+            quality_score = row.get("quality_score")
+            if isinstance(quality_score, (int, float)):
+                quality_values = bucket["quality_values"]
+                assert isinstance(quality_values, list)
+                quality_values.append(float(quality_score))
+            contract_recall = row.get("contract_recall")
+            if isinstance(contract_recall, (int, float)):
+                contract_values = bucket["contract_values"]
+                assert isinstance(contract_values, list)
+                contract_values.append(float(contract_recall))
+            hard_errors = row.get("hard_errors")
+            if isinstance(hard_errors, int) and hard_errors > 0:
+                bucket["hard_error_runs"] = int(bucket["hard_error_runs"]) + 1
+
+        lines.extend(
+            [
+                "## Benchmark Lane Summary",
+                "",
+                "| lane | source_kind | rows | avg_quality | avg_contract_recall | hard_error_runs |",
+                "|---|---|---:|---:|---:|---:|",
+            ]
+        )
+        for (_, _), bucket in sorted(lane_summary.items()):
+            quality_values = bucket["quality_values"]
+            assert isinstance(quality_values, list)
+            contract_values = bucket["contract_values"]
+            assert isinstance(contract_values, list)
+            avg_quality = (
+                f"{sum(quality_values) / len(quality_values):.2f}"
+                if quality_values
+                else "n/a"
+            )
+            avg_contract = (
+                f"{sum(contract_values) / len(contract_values):.3f}"
+                if contract_values
+                else "n/a"
+            )
+            lines.append(
+                "| {} | {} | {} | {} | {} | {} |".format(
+                    _fmt(bucket["lane"]),
+                    _fmt(bucket["source_kind"]),
+                    _fmt(bucket["rows"]),
+                    avg_quality,
+                    avg_contract,
+                    _fmt(bucket["hard_error_runs"]),
+                )
+            )
+            benchmark_lane_summary_rows.append(
+                {
+                    "lane": bucket["lane"],
+                    "source_kind": bucket["source_kind"],
+                    "rows": bucket["rows"],
+                    "avg_quality": avg_quality,
+                    "avg_contract_recall": avg_contract,
+                    "hard_error_runs": bucket["hard_error_runs"],
+                }
+            )
+
+        lines.extend(
+            [
+                "",
+                "## Benchmark Lane Rows",
+                "",
+                "| run_id | fixture_id | variant_id | variant_family | noise_level | source_kind | lane | size_bucket | doc_type | quality | endpoint_recall | heading_recall | contract_recall | contract_failures | hard_errors |",
+                "|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for row in benchmark_lane_rows:
+            lines.append(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                    _fmt(row.get("run_id")),
+                    _fmt(row.get("fixture_id")),
+                    _fmt(row.get("variant_id")),
+                    _fmt(row.get("variant_family")),
+                    _fmt(row.get("noise_level")),
+                    _fmt(row.get("source_kind")),
+                    _fmt(row.get("lane")),
+                    _fmt(row.get("size_bucket")),
+                    _fmt(row.get("doc_type")),
+                    _fmt(row.get("quality_score")),
+                    _fmt(row.get("endpoint_recall")),
+                    _fmt(row.get("heading_recall")),
+                    _fmt(row.get("contract_recall")),
+                    _fmt(row.get("contract_failures")),
+                    _fmt(row.get("hard_errors")),
+                )
+            )
+
+        lines.append("")
+
     lines.extend(
         [
             "## Per Run",
             "",
-            "| timestamp | campaign_id | preset | profile | adapter | topology | provider | input | run_id | status | processed | tok_s | visible_tok_s | latency_s | completion_tokens | output_tokens_est | completion_output_ratio | reasoning_heavy | speed_gate_ok | quality | base_quality | content_f1 | endpoint_recall | endpoint_precision | heading_recall | heading_precision | contract_recall | contract_failures | quality_gate_ok | source | doctor_warning_count | doctor_warning_preview | validation_ok | hard_errors | missing_endpoints |",
-            "|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---:|",
+            "| timestamp | campaign_id | preset | profile | adapter | topology | provider | input | fixture_id | variant_id | variant_family | noise_level | source_kind | run_id | status | processed | tok_s | visible_tok_s | latency_s | completion_tokens | output_tokens_est | completion_output_ratio | reasoning_heavy | speed_gate_ok | quality | base_quality | content_f1 | endpoint_recall | endpoint_precision | heading_recall | heading_precision | contract_recall | contract_failures | quality_gate_ok | source | doctor_warning_count | doctor_warning_preview | validation_ok | hard_errors | missing_endpoints |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---:|---:|",
         ]
     )
 
     if rows:
         for row in rows:
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     _fmt(row["timestamp"]),
                     _fmt(row["campaign_id"]),
                     _fmt(row["preset"]),
@@ -942,6 +1070,11 @@ def main() -> int:
                     _fmt(row["topology"]),
                     _fmt(row["provider"]),
                     _fmt(row["input"]),
+                    _fmt(row.get("fixture_id")),
+                    _fmt(row.get("variant_id")),
+                    _fmt(row.get("variant_family")),
+                    _fmt(row.get("noise_level")),
+                    _fmt(row.get("source_kind")),
                     _fmt(row["run_id"]),
                     _fmt(row["status"]),
                     _fmt(row["processed"]),
@@ -973,7 +1106,7 @@ def main() -> int:
             )
     else:
         lines.append(
-            "| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |"
+            "| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |"
         )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -990,6 +1123,8 @@ def main() -> int:
             "profile_summary": profile_summary_rows,
             "ranking": ranking_rows_json,
             "trend_latest_vs_previous": trend_rows_json,
+            "benchmark_lane_summary": benchmark_lane_summary_rows,
+            "benchmark_lane_rows": benchmark_lane_rows,
             "rows": rows,
         }
         json_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1180,7 +1315,11 @@ def _validation_missing_endpoint_count(artifacts_root: Path, run_id: str) -> obj
 
 
 _QUALITY_CACHE: dict[str, dict[str, object]] = {}
+_ADHOC_QUALITY_CACHE: dict[tuple[str, str, int], dict[str, object]] = {}
 _CONTRACT_CACHE: dict[tuple[str, str], dict[str, object]] = {}
+_CONTRACT_PATH_CACHE: dict[tuple[str, str], dict[str, object]] = {}
+_BENCHMARK_FIXTURE_CACHE: dict[str, dict[str, dict[str, object]]] = {}
+_BENCHMARK_VARIANT_CACHE: dict[str, dict[tuple[str, str], dict[str, object]]] = {}
 
 
 def _quality_metric(*, artifacts_root: Path, run_id: str, key: str) -> object:
@@ -1220,21 +1359,37 @@ def _quality_snapshot(*, artifacts_root: Path, run_id: str) -> dict[str, object]
     output_path = artifacts_root / run_id / "final" / "merged.md"
 
     if not source_path.exists() or not output_path.exists():
-        snapshot = {
-            "quality_score": None,
-            "quality_tier": None,
-            "content_f1": None,
-            "endpoint_recall": None,
-            "endpoint_precision": None,
-            "endpoint_f1": None,
-            "heading_recall": None,
-            "heading_precision": None,
-            "heading_f1": None,
-            "path_recall": None,
-            "number_recall": None,
-            "length_ratio": None,
-        }
+        snapshot = _empty_quality_snapshot()
         _QUALITY_CACHE[run_id] = snapshot
+        return snapshot
+
+    validation = _validation_data(artifacts_root, run_id) or {}
+    hard_errors = validation.get("hard_errors")
+    hard_error_count = len(hard_errors) if isinstance(hard_errors, list) else 0
+
+    snapshot = _quality_snapshot_from_paths(
+        source_path=source_path,
+        output_path=output_path,
+        hard_error_count=hard_error_count,
+    )
+    _QUALITY_CACHE[run_id] = snapshot
+    return snapshot
+
+
+def _quality_snapshot_from_paths(
+    *,
+    source_path: Path,
+    output_path: Path,
+    hard_error_count: int,
+) -> dict[str, object]:
+    cache_key = (str(source_path), str(output_path), hard_error_count)
+    cached = _ADHOC_QUALITY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if not source_path.exists() or not output_path.exists():
+        snapshot = _empty_quality_snapshot()
+        _ADHOC_QUALITY_CACHE[cache_key] = snapshot
         return snapshot
 
     source_text = source_path.read_text(encoding="utf-8")
@@ -1272,10 +1427,6 @@ def _quality_snapshot(*, artifacts_root: Path, run_id: str) -> dict[str, object]
     length_ratio = (output_chars / source_chars) if source_chars > 0 else 1.0
     length_score = _length_ratio_score(length_ratio)
 
-    validation = _validation_data(artifacts_root, run_id) or {}
-    hard_errors = validation.get("hard_errors")
-    hard_error_count = len(hard_errors) if isinstance(hard_errors, list) else 0
-
     weighted = (
         0.45 * endpoint_recall
         + 0.20 * heading_recall
@@ -1303,8 +1454,25 @@ def _quality_snapshot(*, artifacts_root: Path, run_id: str) -> dict[str, object]
         "number_recall": round(number_recall, 3),
         "length_ratio": round(length_ratio, 3),
     }
-    _QUALITY_CACHE[run_id] = snapshot
+    _ADHOC_QUALITY_CACHE[cache_key] = snapshot
     return snapshot
+
+
+def _empty_quality_snapshot() -> dict[str, object]:
+    return {
+        "quality_score": None,
+        "quality_tier": None,
+        "content_f1": None,
+        "endpoint_recall": None,
+        "endpoint_precision": None,
+        "endpoint_f1": None,
+        "heading_recall": None,
+        "heading_precision": None,
+        "heading_f1": None,
+        "path_recall": None,
+        "number_recall": None,
+        "length_ratio": None,
+    }
 
 
 def _extract_endpoints(markdown: str) -> set[str]:
@@ -1369,33 +1537,39 @@ def _contract_snapshot(
 
     contract_path = _contract_path_from_input_ref(input_ref)
     output_path = artifacts_root / run_id / "final" / "merged.md"
+    snapshot = _contract_snapshot_from_path(
+        contract_path=contract_path,
+        output_path=output_path,
+    )
+    _CONTRACT_CACHE[cache_key] = snapshot
+    return snapshot
+
+
+def _contract_snapshot_from_path(
+    *,
+    contract_path: Path,
+    output_path: Path,
+) -> dict[str, object]:
+    cache_key = (str(contract_path), str(output_path))
+    cached = _CONTRACT_PATH_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     if not contract_path.exists() or not output_path.exists():
-        snapshot = {
-            "contract_recall": None,
-            "contract_failures": None,
-            "contract_checks": None,
-        }
-        _CONTRACT_CACHE[cache_key] = snapshot
+        snapshot = _empty_contract_snapshot()
+        _CONTRACT_PATH_CACHE[cache_key] = snapshot
         return snapshot
 
     try:
         contract_raw = json.loads(contract_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        snapshot = {
-            "contract_recall": None,
-            "contract_failures": None,
-            "contract_checks": None,
-        }
-        _CONTRACT_CACHE[cache_key] = snapshot
+        snapshot = _empty_contract_snapshot()
+        _CONTRACT_PATH_CACHE[cache_key] = snapshot
         return snapshot
 
     if not isinstance(contract_raw, dict):
-        snapshot = {
-            "contract_recall": None,
-            "contract_failures": None,
-            "contract_checks": None,
-        }
-        _CONTRACT_CACHE[cache_key] = snapshot
+        snapshot = _empty_contract_snapshot()
+        _CONTRACT_PATH_CACHE[cache_key] = snapshot
         return snapshot
 
     output_text = output_path.read_text(encoding="utf-8")
@@ -1461,14 +1635,286 @@ def _contract_snapshot(
         "contract_failures": failures,
         "contract_checks": checks,
     }
-    _CONTRACT_CACHE[cache_key] = snapshot
+    _CONTRACT_PATH_CACHE[cache_key] = snapshot
     return snapshot
 
 
+def _empty_contract_snapshot() -> dict[str, object]:
+    return {
+        "contract_recall": None,
+        "contract_failures": None,
+        "contract_checks": None,
+    }
+
+
 def _contract_path_from_input_ref(input_ref: str) -> Path:
+    benchmark_context = _benchmark_context(input_ref=input_ref)
+    gold_contract_path = benchmark_context.get("gold_contract_path")
+    if isinstance(gold_contract_path, str) and gold_contract_path.strip():
+        return Path(gold_contract_path)
     stem = Path(input_ref).name
     stem = Path(stem).stem
     return (Path.cwd() / "samples" / "contracts" / f"{stem}.json").resolve()
+
+
+def _benchmark_context(*, input_ref: str) -> dict[str, object]:
+    path = Path(input_ref).expanduser().resolve()
+    benchmark_root = _benchmark_root_for_path(path)
+    snapshot: dict[str, object] = {
+        "benchmark_root": None,
+        "fixture_id": None,
+        "variant_id": None,
+        "variant_family": None,
+        "noise_level": None,
+        "source_kind": None,
+        "size_bucket": None,
+        "doc_type": None,
+        "gold_markdown_path": None,
+        "gold_contract_path": None,
+    }
+    if benchmark_root is None:
+        return snapshot
+
+    snapshot["benchmark_root"] = str(benchmark_root)
+    try:
+        rel = path.relative_to(benchmark_root)
+    except ValueError:
+        return snapshot
+
+    fixture_id: str | None = None
+    variant_id: str | None = None
+    source_kind: str | None = None
+
+    if len(rel.parts) >= 3 and rel.parts[0] == "generated_pdfs":
+        fixture_id = rel.parts[1]
+        variant_id = Path(rel.parts[-1]).stem
+        source_kind = "synthetic"
+    elif (
+        len(rel.parts) >= 3 and rel.parts[0] == "real_paired" and rel.parts[1] == "pdf"
+    ):
+        fixture_id = path.stem
+        source_kind = "real_paired"
+    elif (
+        len(rel.parts) >= 3
+        and rel.parts[0] == "real_unpaired"
+        and rel.parts[1] == "pdf"
+    ):
+        fixture_id = path.stem
+        source_kind = "real_unpaired"
+
+    if fixture_id is None:
+        return snapshot
+
+    snapshot["fixture_id"] = fixture_id
+    snapshot["variant_id"] = variant_id
+    snapshot["source_kind"] = source_kind
+
+    fixtures = _benchmark_fixture_manifest(benchmark_root)
+    fixture_meta = fixtures.get(fixture_id, {})
+    snapshot["size_bucket"] = fixture_meta.get("size_bucket")
+    snapshot["doc_type"] = fixture_meta.get("doc_type")
+
+    source_markdown = fixture_meta.get("source_markdown")
+    if isinstance(source_markdown, str) and source_markdown.strip():
+        gold_markdown_path = (benchmark_root / source_markdown).resolve()
+    else:
+        gold_markdown_path = (
+            benchmark_root / "gold_markdown" / f"{fixture_id}.md"
+        ).resolve()
+    if gold_markdown_path.exists():
+        snapshot["gold_markdown_path"] = str(gold_markdown_path)
+
+    gold_contract_path = (
+        benchmark_root / "gold_contracts" / f"{fixture_id}.json"
+    ).resolve()
+    if gold_contract_path.exists():
+        snapshot["gold_contract_path"] = str(gold_contract_path)
+
+    if variant_id is not None:
+        variants = _benchmark_variant_manifest(benchmark_root)
+        variant_meta = variants.get((fixture_id, variant_id), {})
+        snapshot["variant_family"] = variant_meta.get("variant_family")
+        snapshot["noise_level"] = variant_meta.get("noise_level")
+
+    return snapshot
+
+
+def _benchmark_root_for_path(path: Path) -> Path | None:
+    parts = path.parts
+    for idx in range(len(parts) - 2):
+        if parts[idx : idx + 3] == ("samples", "benchmarks", "v1"):
+            return Path(*parts[: idx + 3])
+    return None
+
+
+def _benchmark_fixture_manifest(benchmark_root: Path) -> dict[str, dict[str, object]]:
+    cache_key = str(benchmark_root)
+    cached = _BENCHMARK_FIXTURE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    manifest_path = benchmark_root / "manifests" / "fixtures.json"
+    fixtures: dict[str, dict[str, object]] = {}
+    if manifest_path.exists():
+        try:
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raw = []
+        if isinstance(raw, list):
+            for item in raw:
+                if not isinstance(item, dict):
+                    continue
+                fixture_id = item.get("fixture_id")
+                if isinstance(fixture_id, str) and fixture_id.strip():
+                    fixtures[fixture_id.strip()] = item
+
+    _BENCHMARK_FIXTURE_CACHE[cache_key] = fixtures
+    return fixtures
+
+
+def _benchmark_variant_manifest(
+    benchmark_root: Path,
+) -> dict[tuple[str, str], dict[str, object]]:
+    cache_key = str(benchmark_root)
+    cached = _BENCHMARK_VARIANT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    manifest_path = benchmark_root / "manifests" / "variants.jsonl"
+    variants: dict[tuple[str, str], dict[str, object]] = {}
+    if manifest_path.exists():
+        for line in manifest_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(item, dict):
+                continue
+            fixture_id = item.get("fixture_id")
+            variant_id = item.get("variant_id")
+            if isinstance(fixture_id, str) and isinstance(variant_id, str):
+                variants[(fixture_id.strip(), variant_id.strip())] = item
+
+    _BENCHMARK_VARIANT_CACHE[cache_key] = variants
+    return variants
+
+
+def _benchmark_lane_rows_for_run(
+    *,
+    row: dict[str, object],
+    artifacts_root: Path,
+) -> list[dict[str, object]]:
+    run_id = row.get("run_id")
+    fixture_id = row.get("fixture_id")
+    source_kind = row.get("source_kind")
+    if not isinstance(run_id, str) or not run_id.strip():
+        return []
+    if not isinstance(fixture_id, str) or not fixture_id.strip():
+        return []
+    if not isinstance(source_kind, str) or not source_kind.strip():
+        return []
+
+    result: list[dict[str, object]] = []
+    hard_error_count = (
+        row.get("hard_errors") if isinstance(row.get("hard_errors"), int) else 0
+    )
+
+    base_fields = {
+        "run_id": run_id,
+        "fixture_id": fixture_id,
+        "variant_id": row.get("variant_id"),
+        "variant_family": row.get("variant_family"),
+        "noise_level": row.get("noise_level"),
+        "source_kind": source_kind,
+        "size_bucket": row.get("size_bucket"),
+        "doc_type": row.get("doc_type"),
+        "hard_errors": row.get("hard_errors"),
+    }
+
+    gold_markdown_value = row.get("gold_markdown_path")
+    gold_markdown_path = (
+        Path(gold_markdown_value) if isinstance(gold_markdown_value, str) else None
+    )
+    gold_contract_value = row.get("gold_contract_path")
+    gold_contract_path = (
+        Path(gold_contract_value) if isinstance(gold_contract_value, str) else None
+    )
+
+    ocr_output_path = artifacts_root / run_id / "raw" / "extracted.md"
+    if not ocr_output_path.exists():
+        ocr_output_path = artifacts_root / run_id / "raw" / "cleaned.md"
+    final_output_path = artifacts_root / run_id / "final" / "merged.md"
+
+    if source_kind in {"synthetic", "real_paired"} and gold_markdown_path is not None:
+        ocr_snapshot = _quality_snapshot_from_paths(
+            source_path=gold_markdown_path,
+            output_path=ocr_output_path,
+            hard_error_count=0,
+        )
+        result.append({**base_fields, "lane": "ocr_lane", **ocr_snapshot})
+
+        full_snapshot = _quality_snapshot_from_paths(
+            source_path=gold_markdown_path,
+            output_path=final_output_path,
+            hard_error_count=hard_error_count,
+        )
+        result.append({**base_fields, "lane": "full_pipeline_lane", **full_snapshot})
+
+    if (
+        source_kind in {"synthetic", "real_paired"}
+        and gold_contract_path is not None
+        and final_output_path.exists()
+    ):
+        contract_snapshot = _contract_snapshot_from_path(
+            contract_path=gold_contract_path,
+            output_path=final_output_path,
+        )
+        result.append(
+            {
+                **base_fields,
+                "lane": "contract_lane",
+                "quality_score": None,
+                "quality_tier": None,
+                "content_f1": None,
+                "endpoint_recall": None,
+                "endpoint_precision": None,
+                "endpoint_f1": None,
+                "heading_recall": None,
+                "heading_precision": None,
+                "heading_f1": None,
+                "path_recall": None,
+                "number_recall": None,
+                "length_ratio": None,
+                **contract_snapshot,
+            }
+        )
+
+    if source_kind == "real_unpaired":
+        result.append(
+            {
+                **base_fields,
+                "lane": "robustness_lane",
+                "quality_score": None,
+                "quality_tier": None,
+                "content_f1": None,
+                "endpoint_recall": None,
+                "endpoint_precision": None,
+                "endpoint_f1": None,
+                "heading_recall": None,
+                "heading_precision": None,
+                "heading_f1": None,
+                "path_recall": None,
+                "number_recall": None,
+                "length_ratio": None,
+                "contract_recall": None,
+                "contract_failures": None,
+                "contract_checks": None,
+            }
+        )
+
+    return result
 
 
 def _visible_tok_s(telemetry: dict[str, object]) -> float | None:

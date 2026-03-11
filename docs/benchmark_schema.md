@@ -151,6 +151,14 @@ Required table columns:
 - `hard_errors`
 - `missing_endpoints`
 
+Benchmark metadata columns when the input belongs to `samples/benchmarks/v1/`:
+
+- `fixture_id`
+- `variant_id`
+- `variant_family`
+- `noise_level`
+- `source_kind`
+
 Optional quality/speed diagnostics columns:
 
 - `base_quality`
@@ -184,7 +192,21 @@ Top-level fields:
 - `profile_summary` (array)
 - `ranking` (array)
 - `trend_latest_vs_previous` (array)
+- `benchmark_lane_summary` (array)
+- `benchmark_lane_rows` (array)
 - `rows` (array)
+
+Benchmark lane row fields:
+
+- `run_id`
+- `fixture_id`
+- `variant_id`
+- `variant_family`
+- `noise_level`
+- `source_kind`
+- `lane`
+- `size_bucket`
+- `doc_type`
 
 Per-row optional quality fields:
 

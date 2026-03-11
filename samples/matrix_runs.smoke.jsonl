@@ -1,2 +1,0 @@
-{"timestamp":"2026-03-03T18:24:01Z","campaign_id":"sectionize-metadata-smoke","preset":"","profile":"profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml","input":"samples/docs/mini_api.md","run_id":"matrix-pipeline.profile.remote_openai_qwen25_7b.example-mini_api-20260303-132357","status":"completed"}
-{"timestamp":"2026-03-03T18:24:01Z","campaign_id":"sectionize-metadata-smoke","preset":"","profile":"profiles/remote/pipeline.profile.remote_openai_qwen25_7b.example.yaml","input":"samples/docs/service_guide.md","status":"skipped_limit","max_runs":1}

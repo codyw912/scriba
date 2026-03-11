@@ -182,6 +182,126 @@ fi
 echo "Matrix campaign: id=$CAMPAIGN_ID preset=${PRESET:-custom}"
 RUN_COUNT=0
 
+resolve_benchmark_metadata() {
+	local input_path="$1"
+	INPUT_PATH="$input_path" uv run python -c 'import json, os; from pathlib import Path
+
+def benchmark_root_for_path(path: Path) -> Path | None:
+	parts = path.parts
+	for idx in range(len(parts) - 2):
+		if parts[idx:idx+3] == ("samples", "benchmarks", "v1"):
+			return Path(*parts[:idx+3])
+	return None
+
+path = Path(os.environ["INPUT_PATH"]).expanduser().resolve()
+root = benchmark_root_for_path(path)
+result = {
+	"fixture_id": None,
+	"variant_id": None,
+	"variant_family": None,
+	"noise_level": None,
+	"source_kind": None,
+	"size_bucket": None,
+	"doc_type": None,
+}
+if root is not None:
+	try:
+		rel = path.relative_to(root)
+	except ValueError:
+		rel = None
+	if rel is not None:
+		fixture_id = None
+		variant_id = None
+		source_kind = None
+		if len(rel.parts) >= 3 and rel.parts[0] == "generated_pdfs":
+			fixture_id = rel.parts[1]
+			variant_id = Path(rel.parts[-1]).stem
+			source_kind = "synthetic"
+		elif len(rel.parts) >= 3 and rel.parts[0] == "real_paired" and rel.parts[1] == "pdf":
+			fixture_id = path.stem
+			source_kind = "real_paired"
+		elif len(rel.parts) >= 3 and rel.parts[0] == "real_unpaired" and rel.parts[1] == "pdf":
+			fixture_id = path.stem
+			source_kind = "real_unpaired"
+		if fixture_id is not None:
+			result["fixture_id"] = fixture_id
+			result["variant_id"] = variant_id
+			result["source_kind"] = source_kind
+			fixtures_path = root / "manifests" / "fixtures.json"
+			if fixtures_path.exists():
+				try:
+					fixtures_raw = json.loads(fixtures_path.read_text(encoding="utf-8"))
+				except json.JSONDecodeError:
+					fixtures_raw = []
+				if isinstance(fixtures_raw, list):
+					for item in fixtures_raw:
+						if isinstance(item, dict) and item.get("fixture_id") == fixture_id:
+							result["size_bucket"] = item.get("size_bucket")
+							result["doc_type"] = item.get("doc_type")
+							break
+			if variant_id is not None:
+				variants_path = root / "manifests" / "variants.jsonl"
+				if variants_path.exists():
+					for line in variants_path.read_text(encoding="utf-8").splitlines():
+						if not line.strip():
+							continue
+						try:
+							item = json.loads(line)
+						except json.JSONDecodeError:
+							continue
+						if isinstance(item, dict) and item.get("fixture_id") == fixture_id and item.get("variant_id") == variant_id:
+							result["variant_family"] = item.get("variant_family")
+							result["noise_level"] = item.get("noise_level")
+							break
+print(json.dumps(result, separators=(",", ":")))' 2>/dev/null || printf '{}'
+}
+
+write_matrix_row() {
+	local status="$1"
+	local input_path="$2"
+	local profile_path="$3"
+	local run_id="$4"
+	local extra_json="${5-}"
+	local metadata_json="${6-}"
+	if [[ -z "$extra_json" ]]; then
+		extra_json='{}'
+	fi
+	if [[ -z "$metadata_json" ]]; then
+		metadata_json='{}'
+	fi
+	TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+	CAMPAIGN_ID_VALUE="$CAMPAIGN_ID" \
+	PRESET_VALUE="$PRESET" \
+	PROFILE_VALUE="$profile_path" \
+	INPUT_VALUE="$input_path" \
+	RUN_ID_VALUE="$run_id" \
+	STATUS_VALUE="$status" \
+	EXTRA_JSON="$extra_json" \
+	METADATA_JSON="$metadata_json" \
+		uv run python -c 'import json, os, sys
+row = {
+	"timestamp": os.environ["TIMESTAMP"],
+	"campaign_id": os.environ["CAMPAIGN_ID_VALUE"],
+	"preset": os.environ["PRESET_VALUE"],
+	"profile": os.environ["PROFILE_VALUE"],
+	"input": os.environ["INPUT_VALUE"],
+	"status": os.environ["STATUS_VALUE"],
+}
+run_id = os.environ.get("RUN_ID_VALUE", "").strip()
+if run_id:
+	row["run_id"] = run_id
+for env_key in ("METADATA_JSON", "EXTRA_JSON"):
+	raw = os.environ.get(env_key, "{}")
+	try:
+		payload = json.loads(raw)
+	except json.JSONDecodeError:
+		payload = {}
+	if isinstance(payload, dict):
+		for key, value in payload.items():
+			row[key] = value
+sys.stdout.write(json.dumps(row, separators=(",", ":")) + "\n")' >>"$OUTPUT_JSONL"
+}
+
 resolve_run_status() {
 	local profile="$1"
 	local run_id="$2"
@@ -196,12 +316,18 @@ for profile in "${PROFILES[@]}"; do
 			continue
 		fi
 
+		metadata_json="$(resolve_benchmark_metadata "$input")"
+
 		if [[ "$MAX_FILE_BYTES" -gt 0 ]]; then
 			file_bytes="$(wc -c <"$input" | tr -d '[:space:]')"
 			if [[ "$file_bytes" -gt "$MAX_FILE_BYTES" ]]; then
-				now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-				printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","status":"skipped_large","file_bytes":%s,"max_file_bytes":%s}\n' \
-					"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" "$file_bytes" "$MAX_FILE_BYTES" >>"$OUTPUT_JSONL"
+				write_matrix_row \
+					"skipped_large" \
+					"$input" \
+					"$profile" \
+					"" \
+					"{\"file_bytes\":$file_bytes,\"max_file_bytes\":$MAX_FILE_BYTES}" \
+					"$metadata_json"
 				echo "Skip large file: $input (${file_bytes} bytes > ${MAX_FILE_BYTES})"
 				continue
 			fi
@@ -209,9 +335,7 @@ for profile in "${PROFILES[@]}"; do
 
 		echo "Doctor: profile=$profile input=$input"
 		if ! uv run scribai doctor --profile "$profile" --input "$input"; then
-			now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-			printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","status":"doctor_failed"}\n' \
-				"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" >>"$OUTPUT_JSONL"
+			write_matrix_row "doctor_failed" "$input" "$profile" "" "{}" "$metadata_json"
 			profile_failed=1
 			if [[ "$STOP_PROFILE_ON_DOCTOR_FAIL" -eq 1 ]]; then
 				echo "Stopping profile after doctor failure: $profile"
@@ -221,16 +345,18 @@ for profile in "${PROFILES[@]}"; do
 		fi
 
 		if [[ "$DOCTOR_ONLY" -eq 1 ]]; then
-			now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-			printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","status":"doctor_ok"}\n' \
-				"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" >>"$OUTPUT_JSONL"
+			write_matrix_row "doctor_ok" "$input" "$profile" "" "{}" "$metadata_json"
 			continue
 		fi
 
 		if [[ "$RUN_COUNT" -ge "$MAX_RUNS" ]]; then
-			now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-			printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","status":"skipped_limit","max_runs":%s}\n' \
-				"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" "$MAX_RUNS" >>"$OUTPUT_JSONL"
+			write_matrix_row \
+				"skipped_limit" \
+				"$input" \
+				"$profile" \
+				"" \
+				"{\"max_runs\":$MAX_RUNS}" \
+				"$metadata_json"
 			echo "Run limit reached (${MAX_RUNS}). Stopping matrix execution early."
 			echo "Matrix run log updated: $OUTPUT_JSONL"
 			exit 0
@@ -260,9 +386,7 @@ for profile in "${PROFILES[@]}"; do
 		fi
 		RUN_COUNT=$((RUN_COUNT + 1))
 
-		now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-		printf '{"timestamp":"%s","campaign_id":"%s","preset":"%s","profile":"%s","input":"%s","run_id":"%s","status":"%s"}\n' \
-			"$now" "$CAMPAIGN_ID" "$PRESET" "$profile" "$input" "$run_id" "$status" >>"$OUTPUT_JSONL"
+		write_matrix_row "$status" "$input" "$profile" "$run_id" "{}" "$metadata_json"
 	done
 
 	if [[ "$profile_failed" -eq 1 && "$STOP_PROFILE_ON_DOCTOR_FAIL" -eq 1 ]]; then
