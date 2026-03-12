@@ -216,3 +216,66 @@ def test_quality_snapshot_uses_none_for_missing_structures(tmp_path: Path) -> No
     assert snapshot["code_block_integrity_score"] is None
     assert snapshot["table_retention_score"] is None
     assert snapshot["hallucination_rate"] == pytest.approx(0.0)
+
+
+def test_benchmark_aggregate_rows_group_by_requested_dimension() -> None:
+    module = _load_report_module()
+    benchmark_aggregate_rows = cast(
+        Callable[..., list[dict[str, Any]]],
+        module["_benchmark_aggregate_rows"],
+    )
+
+    rows = [
+        {
+            "lane": "ocr_lane",
+            "noise_level": "low",
+            "source_kind": "synthetic",
+            "quality_score": 90.0,
+            "char_error_rate": 0.2,
+            "word_error_rate": 0.3,
+            "code_block_integrity_score": 1.0,
+            "table_retention_score": 0.5,
+            "hallucination_rate": 0.1,
+            "contract_recall": None,
+            "hard_errors": 0,
+        },
+        {
+            "lane": "full_pipeline_lane",
+            "noise_level": "low",
+            "source_kind": "synthetic",
+            "quality_score": 70.0,
+            "char_error_rate": 0.4,
+            "word_error_rate": 0.5,
+            "code_block_integrity_score": 0.0,
+            "table_retention_score": 0.0,
+            "hallucination_rate": 0.2,
+            "contract_recall": 0.8,
+            "hard_errors": 1,
+        },
+        {
+            "lane": "ocr_lane",
+            "noise_level": "high",
+            "source_kind": "synthetic",
+            "quality_score": 50.0,
+            "char_error_rate": 0.8,
+            "word_error_rate": 0.9,
+            "code_block_integrity_score": 0.2,
+            "table_retention_score": 0.1,
+            "hallucination_rate": 0.4,
+            "contract_recall": None,
+            "hard_errors": 1,
+        },
+    ]
+
+    aggregates = benchmark_aggregate_rows(
+        benchmark_lane_rows=rows,
+        group_keys=("noise_level", "source_kind"),
+    )
+
+    assert len(aggregates) == 2
+    low_row = next(row for row in aggregates if row["noise_level"] == "low")
+    assert low_row["rows"] == 2
+    assert low_row["avg_quality"] == "80.00"
+    assert low_row["avg_char_error_rate"] == "0.300"
+    assert low_row["avg_contract_recall"] == "0.800"
+    assert low_row["hard_error_runs"] == 1

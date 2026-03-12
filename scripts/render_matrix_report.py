@@ -88,6 +88,9 @@ def main() -> int:
     profile_context_cache: dict[str, dict[str, object]] = {}
     doctor_snapshot_cache: dict[tuple[str, str], dict[str, object]] = {}
     benchmark_lane_summary_rows: list[dict[str, object]] = []
+    benchmark_noise_level_summary_rows: list[dict[str, object]] = []
+    benchmark_size_bucket_summary_rows: list[dict[str, object]] = []
+    benchmark_doc_type_summary_rows: list[dict[str, object]] = []
     if matrix_path.exists() and matrix_path.is_file():
         for line in matrix_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -1005,66 +1008,22 @@ def main() -> int:
         lines.append("")
 
     if benchmark_lane_rows:
-        lane_summary: dict[tuple[str, str], dict[str, object]] = {}
-        for row in benchmark_lane_rows:
-            lane = str(row.get("lane", ""))
-            source_kind = str(row.get("source_kind", ""))
-            key = (lane, source_kind)
-            bucket = lane_summary.setdefault(
-                key,
-                {
-                    "lane": lane,
-                    "source_kind": source_kind,
-                    "rows": 0,
-                    "quality_values": [],
-                    "char_error_values": [],
-                    "word_error_values": [],
-                    "code_block_values": [],
-                    "table_values": [],
-                    "hallucination_values": [],
-                    "contract_values": [],
-                    "hard_error_runs": 0,
-                },
-            )
-            bucket["rows"] = int(bucket["rows"]) + 1
-            quality_score = row.get("quality_score")
-            if isinstance(quality_score, (int, float)):
-                quality_values = bucket["quality_values"]
-                assert isinstance(quality_values, list)
-                quality_values.append(float(quality_score))
-            contract_recall = row.get("contract_recall")
-            if isinstance(contract_recall, (int, float)):
-                contract_values = bucket["contract_values"]
-                assert isinstance(contract_values, list)
-                contract_values.append(float(contract_recall))
-            char_error_rate = row.get("char_error_rate")
-            if isinstance(char_error_rate, (int, float)):
-                char_error_values = bucket["char_error_values"]
-                assert isinstance(char_error_values, list)
-                char_error_values.append(float(char_error_rate))
-            word_error_rate = row.get("word_error_rate")
-            if isinstance(word_error_rate, (int, float)):
-                word_error_values = bucket["word_error_values"]
-                assert isinstance(word_error_values, list)
-                word_error_values.append(float(word_error_rate))
-            code_block_integrity = row.get("code_block_integrity_score")
-            if isinstance(code_block_integrity, (int, float)):
-                code_block_values = bucket["code_block_values"]
-                assert isinstance(code_block_values, list)
-                code_block_values.append(float(code_block_integrity))
-            table_retention = row.get("table_retention_score")
-            if isinstance(table_retention, (int, float)):
-                table_values = bucket["table_values"]
-                assert isinstance(table_values, list)
-                table_values.append(float(table_retention))
-            hallucination_rate = row.get("hallucination_rate")
-            if isinstance(hallucination_rate, (int, float)):
-                hallucination_values = bucket["hallucination_values"]
-                assert isinstance(hallucination_values, list)
-                hallucination_values.append(float(hallucination_rate))
-            hard_errors = row.get("hard_errors")
-            if isinstance(hard_errors, int) and hard_errors > 0:
-                bucket["hard_error_runs"] = int(bucket["hard_error_runs"]) + 1
+        benchmark_lane_summary_rows = _benchmark_aggregate_rows(
+            benchmark_lane_rows=benchmark_lane_rows,
+            group_keys=("lane", "source_kind"),
+        )
+        benchmark_noise_level_summary_rows = _benchmark_aggregate_rows(
+            benchmark_lane_rows=benchmark_lane_rows,
+            group_keys=("noise_level", "source_kind"),
+        )
+        benchmark_size_bucket_summary_rows = _benchmark_aggregate_rows(
+            benchmark_lane_rows=benchmark_lane_rows,
+            group_keys=("size_bucket", "source_kind"),
+        )
+        benchmark_doc_type_summary_rows = _benchmark_aggregate_rows(
+            benchmark_lane_rows=benchmark_lane_rows,
+            group_keys=("doc_type", "source_kind"),
+        )
 
         lines.extend(
             [
@@ -1074,86 +1033,45 @@ def main() -> int:
                 "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
-        for (_, _), bucket in sorted(lane_summary.items()):
-            quality_values = bucket["quality_values"]
-            assert isinstance(quality_values, list)
-            char_error_values = bucket["char_error_values"]
-            assert isinstance(char_error_values, list)
-            word_error_values = bucket["word_error_values"]
-            assert isinstance(word_error_values, list)
-            code_block_values = bucket["code_block_values"]
-            assert isinstance(code_block_values, list)
-            table_values = bucket["table_values"]
-            assert isinstance(table_values, list)
-            hallucination_values = bucket["hallucination_values"]
-            assert isinstance(hallucination_values, list)
-            contract_values = bucket["contract_values"]
-            assert isinstance(contract_values, list)
-            avg_quality = (
-                f"{sum(quality_values) / len(quality_values):.2f}"
-                if quality_values
-                else "n/a"
-            )
-            avg_char_error = (
-                f"{sum(char_error_values) / len(char_error_values):.3f}"
-                if char_error_values
-                else "n/a"
-            )
-            avg_word_error = (
-                f"{sum(word_error_values) / len(word_error_values):.3f}"
-                if word_error_values
-                else "n/a"
-            )
-            avg_code_block = (
-                f"{sum(code_block_values) / len(code_block_values):.3f}"
-                if code_block_values
-                else "n/a"
-            )
-            avg_table = (
-                f"{sum(table_values) / len(table_values):.3f}"
-                if table_values
-                else "n/a"
-            )
-            avg_hallucination = (
-                f"{sum(hallucination_values) / len(hallucination_values):.3f}"
-                if hallucination_values
-                else "n/a"
-            )
-            avg_contract = (
-                f"{sum(contract_values) / len(contract_values):.3f}"
-                if contract_values
-                else "n/a"
-            )
+        for bucket in benchmark_lane_summary_rows:
             lines.append(
                 "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
-                    _fmt(bucket["lane"]),
-                    _fmt(bucket["source_kind"]),
-                    _fmt(bucket["rows"]),
-                    avg_quality,
-                    avg_char_error,
-                    avg_word_error,
-                    avg_code_block,
-                    avg_table,
-                    avg_hallucination,
-                    avg_contract,
+                    _fmt(bucket.get("lane")),
+                    _fmt(bucket.get("source_kind")),
+                    _fmt(bucket.get("rows")),
+                    _fmt(bucket.get("avg_quality")),
+                    _fmt(bucket.get("avg_char_error_rate")),
+                    _fmt(bucket.get("avg_word_error_rate")),
+                    _fmt(bucket.get("avg_code_block_integrity_score")),
+                    _fmt(bucket.get("avg_table_retention_score")),
+                    _fmt(bucket.get("avg_hallucination_rate")),
+                    _fmt(bucket.get("avg_contract_recall")),
                     _fmt(bucket["hard_error_runs"]),
                 )
             )
-            benchmark_lane_summary_rows.append(
-                {
-                    "lane": bucket["lane"],
-                    "source_kind": bucket["source_kind"],
-                    "rows": bucket["rows"],
-                    "avg_quality": avg_quality,
-                    "avg_char_error_rate": avg_char_error,
-                    "avg_word_error_rate": avg_word_error,
-                    "avg_code_block_integrity_score": avg_code_block,
-                    "avg_table_retention_score": avg_table,
-                    "avg_hallucination_rate": avg_hallucination,
-                    "avg_contract_recall": avg_contract,
-                    "hard_error_runs": bucket["hard_error_runs"],
-                }
+
+        lines.append("")
+        lines.extend(
+            _benchmark_cut_section_lines(
+                title="Benchmark Noise Level Summary",
+                label_key="noise_level",
+                rows=benchmark_noise_level_summary_rows,
             )
+        )
+        lines.extend(
+            _benchmark_cut_section_lines(
+                title="Benchmark Size Bucket Summary",
+                label_key="size_bucket",
+                rows=benchmark_size_bucket_summary_rows,
+            )
+        )
+        lines.extend(
+            _benchmark_cut_section_lines(
+                title="Benchmark Doc Type Summary",
+                label_key="doc_type",
+                rows=benchmark_doc_type_summary_rows,
+            )
+        )
 
         lines.extend(
             [
@@ -1272,6 +1190,9 @@ def main() -> int:
             "ranking": ranking_rows_json,
             "trend_latest_vs_previous": trend_rows_json,
             "benchmark_lane_summary": benchmark_lane_summary_rows,
+            "benchmark_noise_level_summary": benchmark_noise_level_summary_rows,
+            "benchmark_size_bucket_summary": benchmark_size_bucket_summary_rows,
+            "benchmark_doc_type_summary": benchmark_doc_type_summary_rows,
             "benchmark_lane_rows": benchmark_lane_rows,
             "rows": rows,
         }
@@ -1946,6 +1867,150 @@ def _contract_path_from_input_ref(input_ref: str) -> Path:
     stem = Path(input_ref).name
     stem = Path(stem).stem
     return (Path.cwd() / "samples" / "contracts" / f"{stem}.json").resolve()
+
+
+def _benchmark_aggregate_rows(
+    *,
+    benchmark_lane_rows: list[dict[str, object]],
+    group_keys: tuple[str, ...],
+) -> list[dict[str, object]]:
+    buckets: dict[tuple[str, ...], dict[str, object]] = {}
+    for row in benchmark_lane_rows:
+        key = tuple(str(row.get(group_key, "")) for group_key in group_keys)
+        bucket = buckets.setdefault(
+            key, _new_benchmark_aggregate_bucket(row, group_keys)
+        )
+        bucket["rows"] = int(bucket["rows"]) + 1
+        _append_bucket_metric(bucket, "quality_values", row.get("quality_score"))
+        _append_bucket_metric(bucket, "char_error_values", row.get("char_error_rate"))
+        _append_bucket_metric(bucket, "word_error_values", row.get("word_error_rate"))
+        _append_bucket_metric(
+            bucket,
+            "code_block_values",
+            row.get("code_block_integrity_score"),
+        )
+        _append_bucket_metric(
+            bucket,
+            "table_values",
+            row.get("table_retention_score"),
+        )
+        _append_bucket_metric(
+            bucket,
+            "hallucination_values",
+            row.get("hallucination_rate"),
+        )
+        _append_bucket_metric(bucket, "contract_values", row.get("contract_recall"))
+        hard_errors = row.get("hard_errors")
+        if isinstance(hard_errors, int) and hard_errors > 0:
+            bucket["hard_error_runs"] = int(bucket["hard_error_runs"]) + 1
+
+    summary_rows: list[dict[str, object]] = []
+    for key in sorted(buckets):
+        bucket = buckets[key]
+        summary = {group_key: bucket.get(group_key) for group_key in group_keys}
+        summary.update(
+            {
+                "source_kind": bucket.get("source_kind"),
+                "rows": bucket.get("rows"),
+                "avg_quality": _avg_label(bucket.get("quality_values"), precision=2),
+                "avg_char_error_rate": _avg_label(
+                    bucket.get("char_error_values"), precision=3
+                ),
+                "avg_word_error_rate": _avg_label(
+                    bucket.get("word_error_values"), precision=3
+                ),
+                "avg_code_block_integrity_score": _avg_label(
+                    bucket.get("code_block_values"), precision=3
+                ),
+                "avg_table_retention_score": _avg_label(
+                    bucket.get("table_values"), precision=3
+                ),
+                "avg_hallucination_rate": _avg_label(
+                    bucket.get("hallucination_values"), precision=3
+                ),
+                "avg_contract_recall": _avg_label(
+                    bucket.get("contract_values"), precision=3
+                ),
+                "hard_error_runs": bucket.get("hard_error_runs"),
+            }
+        )
+        summary_rows.append(summary)
+    return summary_rows
+
+
+def _new_benchmark_aggregate_bucket(
+    row: dict[str, object],
+    group_keys: tuple[str, ...],
+) -> dict[str, object]:
+    bucket: dict[str, object] = {
+        "rows": 0,
+        "source_kind": row.get("source_kind"),
+        "quality_values": [],
+        "char_error_values": [],
+        "word_error_values": [],
+        "code_block_values": [],
+        "table_values": [],
+        "hallucination_values": [],
+        "contract_values": [],
+        "hard_error_runs": 0,
+    }
+    for group_key in group_keys:
+        bucket[group_key] = row.get(group_key)
+    return bucket
+
+
+def _append_bucket_metric(bucket: dict[str, object], key: str, value: object) -> None:
+    if not isinstance(value, (int, float)):
+        return
+    values = bucket.get(key)
+    if not isinstance(values, list):
+        return
+    values.append(float(value))
+
+
+def _avg_label(values_obj: object, *, precision: int) -> str:
+    if not isinstance(values_obj, list) or not values_obj:
+        return "n/a"
+    numeric_values = [
+        float(value) for value in values_obj if isinstance(value, (int, float))
+    ]
+    if not numeric_values:
+        return "n/a"
+    return f"{sum(numeric_values) / len(numeric_values):.{precision}f}"
+
+
+def _benchmark_cut_section_lines(
+    *,
+    title: str,
+    label_key: str,
+    rows: list[dict[str, object]],
+) -> list[str]:
+    if not rows:
+        return []
+    lines = [
+        f"## {title}",
+        "",
+        f"| {label_key} | source_kind | rows | avg_quality | avg_char_er | avg_word_er | avg_code_integrity | avg_table_retention | avg_hallucination_rate | avg_contract_recall | hard_error_runs |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                _fmt(row.get(label_key)),
+                _fmt(row.get("source_kind")),
+                _fmt(row.get("rows")),
+                _fmt(row.get("avg_quality")),
+                _fmt(row.get("avg_char_error_rate")),
+                _fmt(row.get("avg_word_error_rate")),
+                _fmt(row.get("avg_code_block_integrity_score")),
+                _fmt(row.get("avg_table_retention_score")),
+                _fmt(row.get("avg_hallucination_rate")),
+                _fmt(row.get("avg_contract_recall")),
+                _fmt(row.get("hard_error_runs")),
+            )
+        )
+    lines.append("")
+    return lines
 
 
 def _benchmark_context(*, input_ref: str) -> dict[str, object]:

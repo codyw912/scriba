@@ -200,6 +200,9 @@ Top-level fields:
 - `ranking` (array)
 - `trend_latest_vs_previous` (array)
 - `benchmark_lane_summary` (array)
+- `benchmark_noise_level_summary` (array)
+- `benchmark_size_bucket_summary` (array)
+- `benchmark_doc_type_summary` (array)
 - `benchmark_lane_rows` (array)
 - `rows` (array)
 
