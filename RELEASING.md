@@ -31,6 +31,9 @@ Optional provider-backed smoke test:
 OPENROUTER_API_KEY=... uv tool run --from dist/*.whl scribai run --input samples/docs/mini_api.md --run-id release-provider-smoke
 ```
 
+Or run the `Live Integration` GitHub Actions workflow for a provider-backed CLI
+and matrix/report smoke check before tagging a release.
+
 ## Release automation
 
 - CI runs on pushes/PRs and covers:

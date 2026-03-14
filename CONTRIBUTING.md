@@ -62,8 +62,19 @@ Keep PRs focused and reasonably small when possible.
 - no secrets committed (`.env`, API keys, local caches),
 - no large generated artifacts unless explicitly intended.
 
+## Confidence Levels
+
+- Unit/helper coverage: `uv run -m pytest`
+- Deterministic integration coverage: end-to-end benchmark/report flow under
+  `tests/test_integration_benchmark_flow.py` plus the installed-wheel smoke in CI
+- Live provider confidence: run the `Live Integration` GitHub Actions workflow
+  with `OPENROUTER_API_KEY` before trusting benchmark/report changes that depend
+  on real model behavior
+
 ## Live API / Benchmark Runs
 
 - Prefer preserving artifacts for paid/live runs even when validation reports hard errors.
 - Use strict fail mode (`fail_on_hard_errors: true`) primarily for CI/profile hard gates.
 - Capture run metadata and outcomes in the matrix/report artifacts.
+- Treat live provider smoke runs as the final confidence check, not a replacement
+  for deterministic tests.

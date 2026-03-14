@@ -1,0 +1,57 @@
+name: Live Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  openrouter-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SCRIBAI_HOME: ${{ runner.temp }}/scribai-live-home
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify required secret
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "OPENROUTER_API_KEY secret is required for the live integration smoke workflow." >&2
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync development dependencies
+        run: uv sync --group dev
+
+      - name: Run live CLI smoke
+        run: |
+          uv run scribai doctor --preset openrouter --input samples/docs/mini_api.md
+          uv run scribai run --preset openrouter --input samples/docs/mini_api.md --run-id live-cli-smoke --output ${{ runner.temp }}/scribai-live-output
+          uv run scribai status --run-id live-cli-smoke
+
+      - name: Run live matrix + report smoke
+        run: |
+          bash scripts/run_matrix.sh --profile profiles/remote/pipeline.profile.remote_openrouter_qwen35_flash.example.yaml --samples-dir samples/docs --output ${{ runner.temp }}/live_matrix_runs.jsonl --reset-log --max-runs 1 --campaign-id live-openrouter-smoke
+          uv run scripts/render_matrix_report.py --matrix-jsonl ${{ runner.temp }}/live_matrix_runs.jsonl --artifacts-root artifacts --output ${{ runner.temp }}/live_matrix_report.md --json-output ${{ runner.temp }}/live_matrix_report.json
+
+      - name: Upload live smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-integration-artifacts
+          path: |
+            ${{ runner.temp }}/live_matrix_runs.jsonl
+            ${{ runner.temp }}/live_matrix_report.md
+            ${{ runner.temp }}/live_matrix_report.json
+            ${{ runner.temp }}/scribai-live-output
