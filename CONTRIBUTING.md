@@ -70,6 +70,8 @@ Keep PRs focused and reasonably small when possible.
 - Live provider confidence: run the `Live Integration` GitHub Actions workflow
   with `OPENROUTER_API_KEY` before trusting benchmark/report changes that depend
   on real model behavior
+- The `Live Integration` workflow is manual-only and skips cleanly when the
+  secret is not configured; it should not gate normal pushes.
 
 ## Live API / Benchmark Runs
 
