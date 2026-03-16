@@ -1,5 +1,8 @@
 name: Live Integration
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   workflow_dispatch:
 
@@ -13,7 +16,7 @@ jobs:
       SCRIBAI_HOME: ${{ runner.temp }}/scribai-live-home
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Report missing secret and skip live run
         if: env.OPENROUTER_API_KEY == ''
@@ -22,13 +25,13 @@ jobs:
 
       - name: Set up Python
         if: env.OPENROUTER_API_KEY != ''
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Set up uv
         if: env.OPENROUTER_API_KEY != ''
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -51,7 +54,7 @@ jobs:
 
       - name: Upload live smoke artifacts
         if: env.OPENROUTER_API_KEY != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: live-integration-artifacts
           path: |
