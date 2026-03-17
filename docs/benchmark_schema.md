@@ -93,6 +93,7 @@ Profile summary section columns:
 - `doctor_failed`
 - `skipped`
 - `avg_tok_s`
+- `avg_cost_usd`
 - `avg_quality`
 - `avg_endpoint_recall`
 - `avg_contract_recall`
@@ -209,7 +210,38 @@ Top-level fields:
 - `benchmark_size_bucket_summary` (array)
 - `benchmark_doc_type_summary` (array)
 - `benchmark_lane_rows` (array)
+- `selection_summary` (object or null)
 - `rows` (array)
+
+Selection summary fields:
+
+- `constraints.quality_floor`
+- `constraints.max_cost_usd`
+- `constraints.throughput_target`
+- `constraints.max_hard_error_rate`
+- `eligible_count`
+- `recommended_profile`
+- `eligible_profiles` (array)
+- `rejected_profiles` (array)
+
+Benchmark aggregate summary row fields:
+
+- grouping key (`lane`, `noise_level`, `size_bucket`, or `doc_type`)
+- `source_kind`
+- `rows`
+- `avg_quality`
+- `avg_char_error_rate`
+- `avg_word_error_rate`
+- `avg_code_block_integrity_score`
+- `avg_table_retention_score`
+- `avg_hallucination_rate`
+- `avg_contract_recall`
+- `omission_none_rows`
+- `omission_low_rows`
+- `omission_medium_rows`
+- `omission_high_rows`
+- `omission_critical_rows`
+- `hard_error_runs`
 
 Benchmark lane row fields:
 

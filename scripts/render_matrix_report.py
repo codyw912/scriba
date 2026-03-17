@@ -44,6 +44,35 @@ def _parse_args() -> argparse.Namespace:
         default=".env",
         help="Optional env file to load before doctor snapshots",
     )
+    parser.add_argument(
+        "--selection-quality-floor",
+        type=float,
+        default=None,
+        help="Optional minimum average quality for constrained selection summary",
+    )
+    parser.add_argument(
+        "--selection-max-cost-usd",
+        type=float,
+        default=None,
+        help="Optional maximum average per-run cost for constrained selection summary",
+    )
+    parser.add_argument(
+        "--selection-min-throughput",
+        type=float,
+        default=None,
+        help="Optional minimum average visible tokens/second for constrained selection summary",
+    )
+    parser.add_argument(
+        "--selection-max-hard-error-rate",
+        type=float,
+        default=None,
+        help="Optional maximum hard-error rate for constrained selection summary",
+    )
+    parser.add_argument(
+        "--openrouter-models-cache",
+        default="samples/openrouter_models.json",
+        help="OpenRouter models cache path for cost-aware selection summaries",
+    )
     return parser.parse_args()
 
 
@@ -77,8 +106,10 @@ def main() -> int:
     artifacts_root = Path(args.artifacts_root).expanduser().resolve()
     output_path = Path(args.output).expanduser().resolve()
     env_file_path = Path(args.env_file).expanduser().resolve()
+    openrouter_models_cache = Path(args.openrouter_models_cache).expanduser().resolve()
 
     _load_env_file(env_file_path)
+    openrouter_pricing_index = _load_openrouter_pricing_index(openrouter_models_cache)
 
     rows: list[dict[str, object]] = []
     benchmark_lane_rows: list[dict[str, object]] = []
@@ -139,6 +170,7 @@ def main() -> int:
                     "adapter": profile_context.get("adapter"),
                     "topology": profile_context.get("topology"),
                     "provider": profile_context.get("provider"),
+                    "model": profile_context.get("model"),
                     "input": Path(input_ref).name,
                     "input_ref": input_ref,
                     "fixture_id": benchmark_context.get("fixture_id"),
@@ -155,6 +187,7 @@ def main() -> int:
                     "status": status,
                     "tok_s": telemetry.get("effective_tokens_per_second"),
                     "latency_s": telemetry.get("latency_s"),
+                    "prompt_tokens": telemetry.get("prompt_tokens"),
                     "completion_tokens": telemetry.get("completion_tokens"),
                     "output_tokens_est": telemetry.get("output_tokens_est"),
                     "visible_tok_s": _visible_tok_s(telemetry),
@@ -381,6 +414,10 @@ def main() -> int:
                 }
             )
             latest_row = rows[-1]
+            latest_row["cost_usd"] = _row_cost_usd(
+                row=latest_row,
+                openrouter_pricing_index=openrouter_pricing_index,
+            )
             benchmark_lane_rows.extend(
                 _benchmark_lane_rows_for_run(
                     row=latest_row,
@@ -468,6 +505,7 @@ def main() -> int:
                     "speed_gate_checks": 0,
                     "speed_gate_passes": 0,
                     "visible_tok_comparable_values": [],
+                    "cost_values": [],
                 },
             )
             bucket["rows"] = int(bucket["rows"]) + 1
@@ -544,6 +582,12 @@ def main() -> int:
                 content_f1_values = bucket["content_f1_values"]
                 assert isinstance(content_f1_values, list)
                 content_f1_values.append(float(content_f1_value))
+
+            cost_value = latest_row.get("cost_usd")
+            if counts_as_completed and isinstance(cost_value, (int, float)):
+                cost_values = bucket["cost_values"]
+                assert isinstance(cost_values, list)
+                cost_values.append(float(cost_value))
 
             contract_failures_value = latest_row.get("contract_failures")
             if isinstance(contract_failures_value, int) and contract_failures_value > 0:
@@ -745,8 +789,8 @@ def main() -> int:
             [
                 "## Profile Summary",
                 "",
-                "| profile | adapter | topology | provider | rows | completed | failed | doctor_failed | skipped | avg_tok_s | avg_visible_tok_s | avg_visible_tok_s_comparable | avg_completion_output_ratio | avg_quality | avg_content_f1 | avg_endpoint_recall | avg_contract_recall | hard_error_rate | contract_fail_rate | quality_gate_pass_rate | speed_gate_pass_rate | min_tok_s | max_tok_s |",
-                "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "| profile | adapter | topology | provider | rows | completed | failed | doctor_failed | skipped | avg_tok_s | avg_visible_tok_s | avg_visible_tok_s_comparable | avg_completion_output_ratio | avg_cost_usd | avg_quality | avg_content_f1 | avg_endpoint_recall | avg_contract_recall | hard_error_rate | contract_fail_rate | quality_gate_pass_rate | speed_gate_pass_rate | min_tok_s | max_tok_s |",
+                "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for profile, bucket in sorted(profile_summary.items()):
@@ -783,6 +827,15 @@ def main() -> int:
                 f"{sum(completion_output_ratio_values) / len(completion_output_ratio_values):.3f}"
                 if completion_output_ratio_values
                 else "n/a"
+            )
+
+            cost_values = bucket["cost_values"]
+            assert isinstance(cost_values, list)
+            avg_cost_usd = (
+                round(sum(cost_values) / len(cost_values), 6) if cost_values else None
+            )
+            avg_cost_label = (
+                f"{avg_cost_usd:.6f}" if isinstance(avg_cost_usd, float) else "n/a"
             )
 
             quality_values = bucket["quality_values"]
@@ -844,7 +897,7 @@ def main() -> int:
             )
 
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     profile,
                     _fmt(bucket["adapter"]),
                     _fmt(bucket["topology"]),
@@ -858,6 +911,7 @@ def main() -> int:
                     avg_visible_tok,
                     avg_visible_tok_comparable,
                     avg_completion_output_ratio,
+                    avg_cost_label,
                     avg_quality,
                     avg_content_f1,
                     avg_endpoint_recall,
@@ -885,6 +939,7 @@ def main() -> int:
                     "avg_visible_tok_s": avg_visible_tok,
                     "avg_visible_tok_s_comparable": avg_visible_tok_comparable,
                     "avg_completion_output_ratio": avg_completion_output_ratio,
+                    "avg_cost_usd": avg_cost_usd,
                     "avg_quality": avg_quality,
                     "avg_content_f1": avg_content_f1,
                     "avg_endpoint_recall": avg_endpoint_recall,
@@ -897,6 +952,66 @@ def main() -> int:
                     "max_tok_s": max_tok,
                 }
             )
+
+    selection_summary = _selection_summary(
+        profile_summary_rows=profile_summary_rows,
+        quality_floor=args.selection_quality_floor,
+        max_cost_usd=args.selection_max_cost_usd,
+        throughput_target=args.selection_min_throughput,
+        max_hard_error_rate=args.selection_max_hard_error_rate,
+    )
+
+    if selection_summary is not None:
+        constraints = selection_summary["constraints"]
+        assert isinstance(constraints, dict)
+        lines.extend(
+            [
+                "## Constrained Selection Summary",
+                "",
+                f"- quality_floor: `{_fmt(constraints.get('quality_floor'))}`",
+                f"- max_cost_usd: `{_fmt(constraints.get('max_cost_usd'))}`",
+                f"- min_throughput: `{_fmt(constraints.get('throughput_target'))}`",
+                f"- max_hard_error_rate: `{_fmt(constraints.get('max_hard_error_rate'))}`",
+                f"- eligible_profiles: `{_fmt(selection_summary.get('eligible_count'))}`",
+                f"- recommended_profile: `{_fmt(selection_summary.get('recommended_profile'))}`",
+                "",
+                "| status | profile | provider | avg_quality | avg_visible_tok_s | avg_cost_usd | hard_error_rate | reasons |",
+                "|---|---|---|---:|---:|---:|---:|---|",
+            ]
+        )
+        eligible_profiles = selection_summary.get("eligible_profiles")
+        assert isinstance(eligible_profiles, list)
+        for row in eligible_profiles:
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                "| eligible | {} | {} | {} | {} | {} | {} | {} |".format(
+                    _fmt(row.get("profile")),
+                    _fmt(row.get("provider")),
+                    _fmt(row.get("avg_quality")),
+                    _fmt(row.get("avg_visible_tok_s")),
+                    _fmt(row.get("avg_cost_usd")),
+                    _fmt(row.get("hard_error_rate")),
+                    _fmt(row.get("reasons")),
+                )
+            )
+        rejected_profiles = selection_summary.get("rejected_profiles")
+        assert isinstance(rejected_profiles, list)
+        for row in rejected_profiles:
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                "| rejected | {} | {} | {} | {} | {} | {} | {} |".format(
+                    _fmt(row.get("profile")),
+                    _fmt(row.get("provider")),
+                    _fmt(row.get("avg_quality")),
+                    _fmt(row.get("avg_visible_tok_s")),
+                    _fmt(row.get("avg_cost_usd")),
+                    _fmt(row.get("hard_error_rate")),
+                    _fmt(row.get("reasons")),
+                )
+            )
+        lines.append("")
 
         lines.append("")
 
@@ -1250,6 +1365,7 @@ def main() -> int:
             "benchmark_size_bucket_summary": benchmark_size_bucket_summary_rows,
             "benchmark_doc_type_summary": benchmark_doc_type_summary_rows,
             "benchmark_lane_rows": benchmark_lane_rows,
+            "selection_summary": selection_summary,
             "rows": rows,
         }
         json_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1317,6 +1433,7 @@ def _profile_context(
         "adapter": None,
         "topology": None,
         "provider": None,
+        "model": None,
     }
 
     if not profile_ref:
@@ -1341,12 +1458,14 @@ def _profile_context(
                     "adapter": backend.adapter,
                     "topology": backend.topology,
                     "provider": backend.provider,
+                    "model": role.model,
                 }
     except Exception:
         context = {
             "adapter": None,
             "topology": None,
             "provider": None,
+            "model": None,
         }
 
     cache[profile_ref] = context
@@ -1971,6 +2090,164 @@ def _contract_path_from_input_ref(input_ref: str) -> Path:
     stem = Path(input_ref).name
     stem = Path(stem).stem
     return (Path.cwd() / "samples" / "contracts" / f"{stem}.json").resolve()
+
+
+def _load_openrouter_pricing_index(cache_path: Path) -> dict[str, tuple[float, float]]:
+    if not cache_path.exists() or not cache_path.is_file():
+        return {}
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list):
+        return {}
+
+    pricing_index: dict[str, tuple[float, float]] = {}
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        model_id = item.get("id")
+        pricing = item.get("pricing")
+        if not isinstance(model_id, str) or not isinstance(pricing, dict):
+            continue
+        prompt = _coerce_float(pricing.get("prompt"))
+        completion = _coerce_float(pricing.get("completion"))
+        if prompt is None or completion is None:
+            continue
+        pricing_index[model_id] = (prompt, completion)
+    return pricing_index
+
+
+def _row_cost_usd(
+    *,
+    row: dict[str, object],
+    openrouter_pricing_index: dict[str, tuple[float, float]],
+) -> float | None:
+    if str(row.get("provider", "")) != "openrouter":
+        return None
+    model = row.get("model")
+    if not isinstance(model, str) or not model.strip():
+        return None
+    pricing = openrouter_pricing_index.get(model.strip())
+    if pricing is None:
+        return None
+    prompt_tokens = _coerce_float(row.get("prompt_tokens"))
+    completion_tokens = _coerce_float(row.get("completion_tokens"))
+    if prompt_tokens is None or completion_tokens is None:
+        return None
+    prompt_cost, completion_cost = pricing
+    return round(prompt_tokens * prompt_cost + completion_tokens * completion_cost, 6)
+
+
+def _coerce_float(value: object) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _selection_summary(
+    *,
+    profile_summary_rows: list[dict[str, object]],
+    quality_floor: float | None,
+    max_cost_usd: float | None,
+    throughput_target: float | None,
+    max_hard_error_rate: float | None,
+) -> dict[str, object] | None:
+    if (
+        quality_floor is None
+        and max_cost_usd is None
+        and throughput_target is None
+        and max_hard_error_rate is None
+    ):
+        return None
+
+    eligible_profiles: list[dict[str, object]] = []
+    rejected_profiles: list[dict[str, object]] = []
+    for row in profile_summary_rows:
+        profile = str(row.get("profile", ""))
+        provider = row.get("provider")
+        avg_quality = _coerce_float(row.get("avg_quality"))
+        avg_visible_tok_s = _coerce_float(row.get("avg_visible_tok_s_comparable"))
+        if avg_visible_tok_s is None:
+            avg_visible_tok_s = _coerce_float(row.get("avg_visible_tok_s"))
+        if avg_visible_tok_s is None:
+            avg_visible_tok_s = _coerce_float(row.get("avg_tok_s"))
+        hard_error_rate = _coerce_float(row.get("hard_error_rate"))
+        avg_cost_usd = _coerce_float(row.get("avg_cost_usd"))
+
+        reasons: list[str] = []
+        if quality_floor is not None and (
+            avg_quality is None or avg_quality < quality_floor
+        ):
+            reasons.append("quality_below_floor")
+        if max_cost_usd is not None:
+            if avg_cost_usd is None:
+                reasons.append("cost_unknown")
+            elif avg_cost_usd > max_cost_usd:
+                reasons.append("cost_above_budget")
+        if throughput_target is not None and (
+            avg_visible_tok_s is None or avg_visible_tok_s < throughput_target
+        ):
+            reasons.append("throughput_below_target")
+        if max_hard_error_rate is not None and (
+            hard_error_rate is None or hard_error_rate > max_hard_error_rate
+        ):
+            reasons.append("hard_error_rate_above_limit")
+
+        candidate = {
+            "profile": profile,
+            "provider": provider,
+            "avg_quality": avg_quality,
+            "avg_visible_tok_s": avg_visible_tok_s,
+            "avg_cost_usd": avg_cost_usd,
+            "hard_error_rate": hard_error_rate,
+            "reasons": reasons,
+        }
+        if reasons:
+            rejected_profiles.append(candidate)
+        else:
+            eligible_profiles.append(candidate)
+
+    eligible_profiles.sort(
+        key=lambda row: (
+            _sort_float(row.get("avg_quality"), descending=True),
+            _sort_float(row.get("avg_visible_tok_s"), descending=True),
+            _sort_float(row.get("avg_cost_usd"), descending=False),
+            _sort_float(row.get("hard_error_rate"), descending=False),
+            str(row.get("profile", "")),
+        )
+    )
+
+    return {
+        "constraints": {
+            "quality_floor": quality_floor,
+            "max_cost_usd": max_cost_usd,
+            "throughput_target": throughput_target,
+            "max_hard_error_rate": max_hard_error_rate,
+        },
+        "eligible_count": len(eligible_profiles),
+        "recommended_profile": (
+            eligible_profiles[0]["profile"] if eligible_profiles else None
+        ),
+        "eligible_profiles": eligible_profiles,
+        "rejected_profiles": rejected_profiles,
+    }
+
+
+def _sort_float(value: object, *, descending: bool) -> float:
+    number = _coerce_float(value)
+    if number is None:
+        return float("inf") if not descending else float("inf")
+    return -number if descending else number
 
 
 def _benchmark_aggregate_rows(

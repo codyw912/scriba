@@ -158,6 +158,10 @@ def test_benchmark_scripts_run_end_to_end(tmp_path: Path) -> None:
             str(matrix_report),
             "--json-output",
             str(matrix_report_json),
+            "--selection-quality-floor",
+            "80",
+            "--selection-max-hard-error-rate",
+            "0.1",
         ],
         cwd=repo_root,
         check=True,
@@ -182,3 +186,5 @@ def test_benchmark_scripts_run_end_to_end(tmp_path: Path) -> None:
     assert report_json["benchmark_noise_level_summary"]
     assert report_json["benchmark_size_bucket_summary"]
     assert report_json["benchmark_doc_type_summary"]
+    assert report_json["selection_summary"] is not None
+    assert report_json["selection_summary"]["recommended_profile"] == str(profile_path)
