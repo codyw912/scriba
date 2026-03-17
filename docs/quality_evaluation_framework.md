@@ -84,6 +84,7 @@ Quality tiers:
 
 - campaign summary (`avg_quality`)
 - profile summary (`avg_quality`, `avg_endpoint_recall`, `avg_contract_recall`, `hard_error_rate`, `contract_fail_rate`)
+- profile summary (`avg_quality`, `avg_cost_usd`, `avg_endpoint_recall`, `avg_contract_recall`, `hard_error_rate`, `contract_fail_rate`)
 - quality ranking table
 - per-run table (`quality`, `endpoint_recall`, `heading_recall`, `contract_recall`, `contract_failures`)
 
@@ -104,6 +105,14 @@ Per-run table now also includes:
 - `endpoint_precision`
 - `heading_precision`
 - `quality_gate_ok`
+
+Benchmark lane summaries also track omission bucket counts:
+
+- `omission_none_rows`
+- `omission_low_rows`
+- `omission_medium_rows`
+- `omission_high_rows`
+- `omission_critical_rows`
 
 Profile summary now also includes:
 

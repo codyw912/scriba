@@ -362,3 +362,86 @@ def test_benchmark_aggregate_rows_count_omission_buckets() -> None:
     assert row["omission_low_rows"] == 0
     assert row["omission_medium_rows"] == 0
     assert row["omission_critical_rows"] == 0
+
+
+def test_selection_summary_filters_profiles_by_constraints() -> None:
+    module = _load_report_module()
+    selection_summary = cast(
+        Callable[..., dict[str, Any] | None],
+        module["_selection_summary"],
+    )
+
+    summary = selection_summary(
+        profile_summary_rows=[
+            {
+                "profile": "profiles/a.yaml",
+                "provider": "openrouter",
+                "avg_quality": 82.0,
+                "avg_visible_tok_s": 15.0,
+                "avg_tok_s": 12.0,
+                "hard_error_rate": 0.0,
+                "avg_cost_usd": 0.02,
+            },
+            {
+                "profile": "profiles/b.yaml",
+                "provider": "openrouter",
+                "avg_quality": 70.0,
+                "avg_visible_tok_s": 18.0,
+                "avg_tok_s": 16.0,
+                "hard_error_rate": 0.0,
+                "avg_cost_usd": 0.01,
+            },
+            {
+                "profile": "profiles/c.yaml",
+                "provider": "openrouter",
+                "avg_quality": 85.0,
+                "avg_visible_tok_s": 14.0,
+                "avg_tok_s": 13.0,
+                "hard_error_rate": 0.2,
+                "avg_cost_usd": 0.08,
+            },
+        ],
+        quality_floor=75.0,
+        max_cost_usd=0.05,
+        throughput_target=10.0,
+        max_hard_error_rate=0.1,
+    )
+
+    assert summary is not None
+    assert summary["eligible_count"] == 1
+    assert summary["recommended_profile"] == "profiles/a.yaml"
+
+    rejected = {row["profile"]: row["reasons"] for row in summary["rejected_profiles"]}
+    assert rejected["profiles/b.yaml"] == ["quality_below_floor"]
+    assert rejected["profiles/c.yaml"] == [
+        "cost_above_budget",
+        "hard_error_rate_above_limit",
+    ]
+
+
+def test_selection_summary_returns_none_without_constraints() -> None:
+    module = _load_report_module()
+    selection_summary = cast(
+        Callable[..., dict[str, Any] | None],
+        module["_selection_summary"],
+    )
+
+    summary = selection_summary(
+        profile_summary_rows=[
+            {
+                "profile": "profiles/a.yaml",
+                "provider": "openrouter",
+                "avg_quality": 82.0,
+                "avg_visible_tok_s": 15.0,
+                "avg_tok_s": 12.0,
+                "hard_error_rate": 0.0,
+                "avg_cost_usd": 0.02,
+            }
+        ],
+        quality_floor=None,
+        max_cost_usd=None,
+        throughput_target=None,
+        max_hard_error_rate=None,
+    )
+
+    assert summary is None
